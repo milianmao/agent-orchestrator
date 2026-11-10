@@ -1168,7 +1168,6 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (result doma
 		agentConfig = resolved
 	}
 	cfg.RequestedMode = mode
-	NoteSpawnLaunch(ctx, mode, cfg.Async && mode == domain.SessionModeChat)
 
 	// A chat session runs no agent inside a terminal runtime, so the terminal
 	// prerequisites are not its concern.
@@ -1184,6 +1183,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (result doma
 	// synchronous: its run is marked launched only once the prompt is delivered.
 	asyncStart := cfg.Async && (cfg.Kind == domain.KindOrchestrator || cfg.Kind == domain.KindWorker) &&
 		((mode == domain.SessionModeChat && m.chat != nil) || (mode == domain.SessionModeTUI && cfg.AutomationRunID == nil))
+	NoteSpawnLaunch(ctx, mode, asyncStart)
 
 	var prep *taskPreparation
 	if cfg.AutomationRunID == nil && cfg.Branch == "" {
