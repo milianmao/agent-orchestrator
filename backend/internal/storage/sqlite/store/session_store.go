@@ -1138,6 +1138,7 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		Metadata: domain.SessionMetadata{
 			Branch:                           row.Branch,
 			WorkspacePath:                    row.WorkspacePath,
+			WorktreeRoot:                     row.WorktreeRoot,
 			WorkspaceRepoPath:                row.WorkspaceRepoPath,
 			DiffBaseSHA:                      row.DiffBaseSha,
 			DiffBaseRef:                      row.DiffBaseRef,
@@ -1270,6 +1271,7 @@ func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams
 		PinnedAt:                         timePtrToNullTime(rec.PinnedAt),
 		Branch:                           rec.Metadata.Branch,
 		WorkspacePath:                    rec.Metadata.WorkspacePath,
+		WorktreeRoot:                     rec.Metadata.WorktreeRoot,
 		WorkspaceRepoPath:                rec.Metadata.WorkspaceRepoPath,
 		DiffBaseSha:                      rec.Metadata.DiffBaseSHA,
 		DiffBaseRef:                      rec.Metadata.DiffBaseRef,

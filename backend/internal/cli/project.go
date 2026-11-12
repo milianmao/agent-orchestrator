@@ -56,12 +56,15 @@ type projectSummary struct {
 }
 
 type projectDetails struct {
-	ID             string                 `json:"id"`
-	Name           string                 `json:"name"`
-	Kind           string                 `json:"kind"`
-	Path           string                 `json:"path"`
-	Repo           string                 `json:"repo"`
-	DefaultBranch  string                 `json:"defaultBranch"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Kind          string `json:"kind"`
+	Path          string `json:"path"`
+	Repo          string `json:"repo"`
+	DefaultBranch string `json:"defaultBranch"`
+	// WorktreeRoot is the effective root new sessions create worktrees under;
+	// the configured value, else the installation default.
+	WorktreeRoot   string                 `json:"worktreeRoot,omitempty"`
 	Agent          string                 `json:"agent,omitempty"`
 	Config         *projectConfig         `json:"config,omitempty"`
 	WorkspaceRepos []workspaceRepoDetails `json:"workspaceRepos,omitempty"`
@@ -111,23 +114,26 @@ type containerReapConfig struct {
 // --config-json. Every domain key must be modeled here, or set-config drops it
 // (TestProjectConfigMirrorsDomainJSONKeys guards this).
 type projectConfig struct {
-	ContainerReap         *containerReapConfig `json:"containerReap,omitempty"`
-	CanonicalRepoURL      string               `json:"canonicalRepoURL,omitempty"`
-	DefaultBranch         string               `json:"defaultBranch,omitempty"`
-	SessionPrefix         string               `json:"sessionPrefix,omitempty"`
-	Env                   map[string]string    `json:"env,omitempty"`
-	Symlinks              []string             `json:"symlinks,omitempty"`
-	PostCreate            []string             `json:"postCreate,omitempty"`
-	PreRemove             []string             `json:"preRemove,omitempty"`
-	AgentRules            string               `json:"agentRules,omitempty"`
-	AgentRulesFile        string               `json:"agentRulesFile,omitempty"`
-	OrchestratorRules     string               `json:"orchestratorRules,omitempty"`
-	OrchestratorRulesFile string               `json:"orchestratorRulesFile,omitempty"`
-	AgentConfig           agentConfig          `json:"agentConfig,omitempty"`
-	Worker                roleOverride         `json:"worker,omitempty"`
-	Orchestrator          roleOverride         `json:"orchestrator,omitempty"`
-	TrackerIntake         trackerIntakeConfig  `json:"trackerIntake,omitempty"`
-	AutoReview            bool                 `json:"autoReview,omitempty"`
+	ContainerReap    *containerReapConfig `json:"containerReap,omitempty"`
+	CanonicalRepoURL string               `json:"canonicalRepoURL,omitempty"`
+	DefaultBranch    string               `json:"defaultBranch,omitempty"`
+	// WorktreeRoot must round-trip: it is the absolute root new sessions of the
+	// project create worktrees under.
+	WorktreeRoot          string              `json:"worktreeRoot,omitempty"`
+	SessionPrefix         string              `json:"sessionPrefix,omitempty"`
+	Env                   map[string]string   `json:"env,omitempty"`
+	Symlinks              []string            `json:"symlinks,omitempty"`
+	PostCreate            []string            `json:"postCreate,omitempty"`
+	PreRemove             []string            `json:"preRemove,omitempty"`
+	AgentRules            string              `json:"agentRules,omitempty"`
+	AgentRulesFile        string              `json:"agentRulesFile,omitempty"`
+	OrchestratorRules     string              `json:"orchestratorRules,omitempty"`
+	OrchestratorRulesFile string              `json:"orchestratorRulesFile,omitempty"`
+	AgentConfig           agentConfig         `json:"agentConfig,omitempty"`
+	Worker                roleOverride        `json:"worker,omitempty"`
+	Orchestrator          roleOverride        `json:"orchestrator,omitempty"`
+	TrackerIntake         trackerIntakeConfig `json:"trackerIntake,omitempty"`
+	AutoReview            bool                `json:"autoReview,omitempty"`
 	// WorkersRequestReview must round-trip through set-config so a CLI edit
 	// of another field never silently turns it off.
 	WorkersRequestReview bool             `json:"workersRequestReview,omitempty"`
@@ -143,6 +149,7 @@ type setConfigRequest struct {
 type projectSetConfigOptions struct {
 	canonicalRepoURL      string
 	defaultBranch         string
+	worktreeRoot          string
 	sessionPrefix         string
 	model                 string
 	permission            string
@@ -342,6 +349,7 @@ func newProjectSetConfigCommand(ctx *commandContext) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringVar(&opts.defaultBranch, "default-branch", "", "Base branch for new worktrees; auto infers each repository's Git default")
+	f.StringVar(&opts.worktreeRoot, "worktree-root", "", "Absolute root directory for new session worktrees (empty keeps the project's saved root)")
 	f.StringVar(&opts.canonicalRepoURL, "canonical-repo-url", "", "Explicit upstream HTTPS repository URL for PR claims (same provider, host, and port as origin)")
 	f.StringVar(&opts.sessionPrefix, "session-prefix", "", "Displayed session-id prefix")
 	f.StringVar(&opts.model, "model", "", "Agent model override (e.g. claude-opus-4-5)")
@@ -368,7 +376,7 @@ func newProjectSetConfigCommand(ctx *commandContext) *cobra.Command {
 
 // projectConfigFlags are the set-config flags that edit one config field.
 var projectConfigFlags = []string{
-	"canonical-repo-url", "default-branch", "session-prefix", "model", "permission",
+	"canonical-repo-url", "default-branch", "worktree-root", "session-prefix", "model", "permission",
 	"worker-agent", "orchestrator-agent", "agent-rules", "agent-rules-file",
 	"orchestrator-rules", "orchestrator-rules-file", "env", "symlink", "post-create",
 	"pre-remove", "tracker-intake", "tracker-repo", "tracker-assignee", "reviewer",
@@ -409,6 +417,7 @@ func buildProjectConfig(opts projectSetConfigOptions, changed func(name string) 
 	}
 	setIfChanged("canonical-repo-url", &cfg.CanonicalRepoURL, opts.canonicalRepoURL)
 	setIfChanged("default-branch", &cfg.DefaultBranch, opts.defaultBranch)
+	setIfChanged("worktree-root", &cfg.WorktreeRoot, opts.worktreeRoot)
 	setIfChanged("session-prefix", &cfg.SessionPrefix, opts.sessionPrefix)
 	setIfChanged("model", &cfg.AgentConfig.Model, opts.model)
 	setIfChanged("permission", &cfg.AgentConfig.Permissions, opts.permission)

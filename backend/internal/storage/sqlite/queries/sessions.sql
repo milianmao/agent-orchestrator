@@ -23,7 +23,8 @@ INSERT INTO sessions (
     requested_output,
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review, auto_inject_ci,
     provision_state, provision_error, is_task_preparation, automation_run_id, automation_launch_completed,
-    client_request_id, client_request_hash, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id
+    client_request_id, client_request_hash, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
+    worktree_root
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -31,7 +32,7 @@ INSERT INTO sessions (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: GetClientRequestSession :one
@@ -46,7 +47,7 @@ UPDATE sessions SET client_request_committed = 1 WHERE id = ? AND client_request
 UPDATE sessions SET
     issue_id = ?, kind = ?, harness = ?, reviewer_harness = ?, reviewer_agent_config = ?, auto_review_enabled = ?,
     activity_state = ?, activity_last_at = ?, first_signal_at = ?, is_terminated = ?,
-    branch = CASE WHEN temporary_branch <> '' AND temporary_branch = ? THEN branch ELSE ? END, workspace_path = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
+    branch = CASE WHEN temporary_branch <> '' AND temporary_branch = ? THEN branch ELSE ? END, workspace_path = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?, worktree_root = ?,
     runtime_launch_id = ?, agent_session_id = ?, agent_session_id_launch_id = ?, native_identity_observed_at = ?, prompt = ?,
     latest_user_prompt = ?, latest_user_prompt_at = ?, latest_assistant_update = ?, latest_assistant_update_at = ?,
     conversation_checkpoint_state = ?, conversation_checkpoint_generation = ?, conversation_checkpoint_native_id = ?,
@@ -294,7 +295,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     claude_activity_facts, codex_activity_facts,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
-    runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id
+    runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
+    worktree_root
 FROM sessions WHERE id = ?;
 
 -- name: GetSessionByAutomationRunID :one
@@ -316,7 +318,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     claude_activity_facts, codex_activity_facts,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
-    runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id
+    runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
+    worktree_root
 FROM sessions WHERE automation_run_id = ?;
 
 -- name: ListSessionsByProject :many
@@ -338,7 +341,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     claude_activity_facts, codex_activity_facts,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
-    runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id
+    runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
+    worktree_root
 FROM sessions WHERE project_id IS ? ORDER BY num;
 
 -- name: ListAllSessions :many
@@ -360,7 +364,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     claude_activity_facts, codex_activity_facts,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
-    runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id
+    runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
+    worktree_root
 FROM sessions ORDER BY project_id, num;
 
 -- name: ListChatHibernationCandidates :many
