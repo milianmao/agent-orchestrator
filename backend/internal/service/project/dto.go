@@ -68,14 +68,22 @@ type InitializeRepositoryResult struct {
 type UpdateSettingsInput struct {
 	DisplayName string               `json:"displayName" minLength:"1" maxLength:"100"`
 	Config      domain.ProjectConfig `json:"config"`
-	// WorktreeRootPresent reports whether the request body carried a
-	// worktreeRoot key. JSON cannot otherwise tell "leave it alone" from "clear
-	// it": both decode to the empty string. A client that omits the key (any
-	// build older than the field) keeps the saved root instead of erasing it.
+	// WorktreeRootPresent reports whether the request body's config object
+	// carried the "worktreeRoot" KEY. Presence is the whole rule: JSON cannot
+	// otherwise tell "leave the saved root alone" from "clear it", because an
+	// absent key and an explicit "" both decode to the empty string.
 	//
-	// The key is compared as a MAP MEMBER, so "" clears the root. A whole-config
-	// replacement (`ao project set-config --clear`, or --config-json "{}") is
-	// expressed by the CLI sending the key explicitly; see buildProjectConfig.
+	//   key absent  -> the saved root is preserved (this is what any client built
+	//                  before the field existed sends, and what a field-flag edit
+	//                  that never mentions the root sends)
+	//   key present -> its value is used verbatim, so "worktreeRoot": "" clears
+	//                  the saved root
+	//
+	// The CLI keeps three states distinct: `ao project set-config` with field
+	// flags omits the key; `--worktree-root ""` sends the key with an empty
+	// string; and the full replacements `--clear` / `--config-json` always send
+	// the key, explicitly empty when the replacement names no root, because they
+	// replace the whole config rather than merging into it.
 	WorktreeRootPresent bool `json:"-"`
 }
 
@@ -83,8 +91,10 @@ type UpdateSettingsInput struct {
 // replaces the project's stored config wholesale; a zero-value config clears it.
 type SetConfigInput struct {
 	Config domain.ProjectConfig `json:"config"`
-	// WorktreeRootPresent mirrors UpdateSettingsInput: false means the request
-	// did not name the field, so the stored root is preserved.
+	// WorktreeRootPresent mirrors UpdateSettingsInput: the key's presence in the
+	// request's config object decides. Absent preserves the stored root; present
+	// (including "") replaces it. See UpdateSettingsInput for the CLI's three
+	// states.
 	WorktreeRootPresent bool `json:"-"`
 }
 

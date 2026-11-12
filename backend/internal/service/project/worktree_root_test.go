@@ -701,3 +701,53 @@ func TestRejectedRootRollbackNeverRemovesJunctionTarget(t *testing.T) {
 		t.Fatalf("pre-existing directory removed: %v", statErr)
 	}
 }
+
+// TestNewRootUnderJunctionedParentSucceeds covers the Medium finding: a parent
+// reached through a Windows junction exists, so creating a not-yet-existing child
+// root beneath it must succeed. Probing the parent with filepath.EvalSymlinks
+// fails for junction sub-paths even though the folder is present, which used to
+// report WORKTREE_ROOT_PARENT_MISSING for a perfectly valid folder.
+func TestNewRootUnderJunctionedParentSucceeds(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("junctions are a Windows filesystem feature")
+	}
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	repo := gitRepo(t)
+
+	realParent := t.TempDir()
+	linkParent := filepath.Join(t.TempDir(), "parent-junction")
+	if err := exec.Command("cmd", "/c", "mklink", "/J", linkParent, realParent).Run(); err != nil {
+		t.Skipf("junctions unavailable on this host: %v", err)
+	}
+
+	// The child does not exist yet; its parent (the junction target) does.
+	newRoot := filepath.Join(linkParent, "child-root")
+	added, err := m.Add(ctx, project.AddInput{
+		Path:   repo,
+		Config: &domain.ProjectConfig{WorktreeRoot: newRoot},
+	})
+	if err != nil {
+		t.Fatalf("Add with a new root under a junctioned parent: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(realParent, "child-root")); statErr != nil {
+		t.Fatalf("root was not created under the junction target: %v", statErr)
+	}
+	if added.Config == nil || added.Config.WorktreeRoot == "" {
+		t.Fatalf("saved root is empty: %+v", added.Config)
+	}
+}
+
+// TestNewRootUnderMissingParentStillRefused is the guard for the same check: a
+// parent that genuinely does not exist is still reported, so the junction fix did
+// not simply drop the rule.
+func TestNewRootUnderMissingParentStillRefused(t *testing.T) {
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	repo := gitRepo(t)
+	_, err := m.Add(ctx, project.AddInput{
+		Path:   repo,
+		Config: &domain.ProjectConfig{WorktreeRoot: filepath.Join(t.TempDir(), "missing", "root")},
+	})
+	wantCode(t, err, "WORKTREE_ROOT_PARENT_MISSING")
+}

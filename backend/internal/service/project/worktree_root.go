@@ -111,7 +111,11 @@ func (m *Service) prepareWorktreeRootDirectory(root string) (physicalPath string
 		return "", false, apierr.Invalid("WORKTREE_ROOT_NOT_DIRECTORY", "The worktree root must be a folder.", map[string]any{"worktreeRoot": root})
 	}
 	if errors.Is(statErr, fs.ErrNotExist) {
-		if _, parentErr := filepath.EvalSymlinks(filepath.Dir(root)); parentErr != nil {
+		// The parent only has to EXIST; its resolved identity is irrelevant here.
+		// filepath.EvalSymlinks is the wrong probe: on Windows it fails for a path
+		// that traverses a directory junction even though the folder is right
+		// there, which turned a valid new child root into WORKTREE_ROOT_PARENT_MISSING.
+		if parentInfo, parentErr := os.Stat(filepath.Dir(root)); parentErr != nil || !parentInfo.IsDir() {
 			return "", false, apierr.Invalid("WORKTREE_ROOT_PARENT_MISSING",
 				"The worktree root's parent folder does not exist. Create it first, or choose another folder.",
 				map[string]any{"worktreeRoot": root, "parent": filepath.Dir(root)})
