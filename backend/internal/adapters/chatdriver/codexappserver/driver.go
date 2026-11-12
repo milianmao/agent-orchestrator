@@ -278,6 +278,11 @@ func installedCodexVersion(ctx context.Context, bin string) (string, error) {
 
 // Start opens a new Codex thread in the session worktree.
 func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.ChatConversation, error) {
+	resolved, resolveErr := resolveMCPReferences(cfg.MCPServers)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
+	cfg.MCPServers = resolved
 	profileConfig, prepare, identity, err := d.profileLaunch(ctx, cfg.Profile, cfg.Model, cfg.Effort, cfg.Env, cfg.PrepareEnv)
 	if err != nil {
 		return nil, err
@@ -325,6 +330,7 @@ func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.Ch
 	// thread/start has no top-level effort field either; carry the durable AO
 	// choice as a config override like thread/resume does, so a fresh thread
 	// does not silently fall back to the provider default.
+	conv.registerMCPReferences(cfg.MCPServers)
 	if config := threadConfig(cfg.Effort, cfg.MCPServers); len(config) > 0 {
 		params["config"] = config
 	}
@@ -344,7 +350,7 @@ func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.Ch
 	defer cancel()
 	if err := conv.conn.request(openCtx, "thread/start", params, &resp); err != nil {
 		_ = conv.Terminate()
-		return nil, fmt.Errorf("thread/start: %w", err)
+		return nil, fmt.Errorf("thread/start: %w", conv.mcpDiagnosticError(err))
 	}
 	if resp.Thread.ID == "" {
 		_ = conv.Terminate()
@@ -369,6 +375,11 @@ func (d *Driver) Reconnect(ctx context.Context, cfg ports.ChatResumeConfig) (por
 // Resume reattaches to a stored Codex thread after a daemon or app-server
 // restart. A thread that is still running is rejoined rather than restarted.
 func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.ChatConversation, error) {
+	resolved, resolveErr := resolveMCPReferences(cfg.MCPServers)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
+	cfg.MCPServers = resolved
 	profileConfig, prepare, identity, err := d.profileLaunch(ctx, cfg.Profile, cfg.Model, cfg.Effort, cfg.Env, cfg.PrepareEnv)
 	if err != nil {
 		return nil, err
@@ -421,6 +432,7 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 	// thread/resume has no top-level effort field. Codex exposes persistent
 	// reasoning effort as a config override, so carry the durable AO choice into
 	// the resumed thread instead of silently falling back to the provider default.
+	conv.registerMCPReferences(cfg.MCPServers)
 	if config := threadConfig(cfg.Effort, cfg.MCPServers); len(config) > 0 {
 		params["config"] = config
 	}
@@ -458,7 +470,7 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 		}
 		if err != nil {
 			_ = conv.Terminate()
-			return nil, fmt.Errorf("%w: start in place of a missing thread: %w", ports.ErrChatResumeFailed, err)
+			return nil, fmt.Errorf("%w: start in place of a missing thread: %w", ports.ErrChatResumeFailed, conv.mcpDiagnosticError(err))
 		}
 		conv.start(started.Thread.ID, started.Model, started.ReasoningEffort)
 		return conv, nil
@@ -467,7 +479,7 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 		_ = conv.Terminate()
 		// Otherwise not falling back to thread/start: silently opening a new
 		// conversation would present unrelated history as continuous.
-		return nil, fmt.Errorf("%w: %w", ports.ErrChatResumeFailed, err)
+		return nil, fmt.Errorf("%w: %w", ports.ErrChatResumeFailed, conv.mcpDiagnosticError(err))
 	}
 
 	// A tier sticks to the thread. One AO left it on is undone by the first turn
@@ -847,6 +859,11 @@ func codexProcessEnv(ctx context.Context, bin string, env map[string]string, pro
 
 // ForkIntoHost starts an inclusive native fork in an independent provider host.
 func (d *Driver) ForkIntoHost(ctx context.Context, sourceProviderConversationID, lastProviderTurnID string, cfg ports.ChatStartConfig) (ports.ChatConversation, error) {
+	resolved, resolveErr := resolveMCPReferences(cfg.MCPServers)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
+	cfg.MCPServers = resolved
 	if cfg.Profile != "" {
 		return nil, fmt.Errorf("provider profile does not support native side forks")
 	}
@@ -883,6 +900,7 @@ func (d *Driver) ForkIntoHost(ctx context.Context, sourceProviderConversationID,
 	}
 	// Same overrides as thread/start and thread/resume: without the MCP servers
 	// a fresh fork has no AO tools until a restart resumes it.
+	conv.registerMCPReferences(cfg.MCPServers)
 	if config := threadConfig(cfg.Effort, cfg.MCPServers); len(config) > 0 {
 		params["config"] = config
 	}
@@ -900,7 +918,7 @@ func (d *Driver) ForkIntoHost(ctx context.Context, sourceProviderConversationID,
 	}
 	if err := conv.conn.request(openCtx, "thread/fork", params, &resp); err != nil {
 		_ = conv.Terminate()
-		return nil, fmt.Errorf("thread/fork in side host: %w", err)
+		return nil, fmt.Errorf("thread/fork in side host: %w", conv.mcpDiagnosticError(err))
 	}
 	if resp.Thread.ID == "" || resp.Thread.ID == sourceProviderConversationID {
 		_ = conv.Terminate()

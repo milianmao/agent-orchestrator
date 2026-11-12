@@ -12950,6 +12950,200 @@ paths:
       summary: Turn idle Chat hibernation on or off for this machine
       tags:
       - settings
+  /api/v1/settings/codex/mcp:
+    get:
+      operationId: listCodexMCPConfigs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodexMCPListResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List machine-shared Codex MCP reference configurations
+      tags:
+      - settings
+    post:
+      operationId: createCodexMCPConfig
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCodexMCPRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodexMCPMutationResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Create a Codex MCP configuration for new sessions
+      tags:
+      - settings
+  /api/v1/settings/codex/mcp/{name}:
+    delete:
+      operationId: deleteCodexMCPConfig
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodexMCPMutationResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Delete a Codex MCP configuration for new sessions
+      tags:
+      - settings
+    patch:
+      operationId: patchCodexMCPConfig
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchCodexMCPRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodexMCPMutationResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Update or enable a Codex MCP configuration for new sessions
+      tags:
+      - settings
   /api/v1/settings/computer-use:
     patch:
       operationId: updateComputerUse
@@ -20462,6 +20656,58 @@ components:
       - reasonCode
       - retryable
       type: object
+    CodexMCPListResponse:
+      properties:
+        servers:
+          items:
+            $ref: '#/components/schemas/CodexMCPStatus'
+          type: array
+      required:
+      - servers
+      type: object
+    CodexMCPMutationResponse:
+      properties:
+        newSessionsOnly:
+          type: boolean
+      required:
+      - newSessionsOnly
+      type: object
+    CodexMCPStatus:
+      properties:
+        args:
+          items:
+            type: string
+          type: array
+        command:
+          type: string
+        enabled:
+          type: boolean
+        envRefs:
+          additionalProperties:
+            type: string
+          type: object
+        headerRefs:
+          additionalProperties:
+            type: string
+          type: object
+        missingReferences:
+          items:
+            type: string
+          type: array
+        name:
+          type: string
+        startupFailure:
+          type: string
+        transport:
+          type: string
+        url:
+          type: string
+      required:
+      - name
+      - transport
+      - enabled
+      - missingReferences
+      type: object
     CodexResetCreditsSummaryResponse:
       properties:
         availableCount:
@@ -22305,6 +22551,35 @@ components:
       - prompt
       - kind
       - timezone
+      type: object
+    CreateCodexMCPRequest:
+      properties:
+        args:
+          items:
+            type: string
+          type: array
+        command:
+          type: string
+        enabled:
+          type: boolean
+        envRefs:
+          additionalProperties:
+            type: string
+          type: object
+        headerRefs:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+        transport:
+          type: string
+        url:
+          type: string
+      required:
+      - name
+      - transport
+      - enabled
       type: object
     CreateConversationSideChatRequest:
       properties:
@@ -24563,6 +24838,43 @@ components:
       - title
       - targetSha
       - status
+      type: object
+    PatchCodexMCPRequest:
+      properties:
+        args:
+          items:
+            type: string
+          type:
+          - "null"
+          - array
+        command:
+          type:
+          - "null"
+          - string
+        enabled:
+          type:
+          - "null"
+          - boolean
+        envRefs:
+          additionalProperties:
+            type: string
+          type:
+          - "null"
+          - object
+        headerRefs:
+          additionalProperties:
+            type: string
+          type:
+          - "null"
+          - object
+        transport:
+          type:
+          - "null"
+          - string
+        url:
+          type:
+          - "null"
+          - string
       type: object
     PathReservationView:
       properties:

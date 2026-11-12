@@ -272,6 +272,14 @@ var schemaNames = map[string]string{ //nolint:gosec // Public OpenAPI type names
 	"DomainHarnessDefault":                                 "HarnessDefault",
 	"ControllersUpdateHarnessDefaultRequest":               "UpdateHarnessDefaultRequest",
 	"ControllersSettingsResponse":                          "SettingsResponse",
+	"ControllersCreateCodexMCPRequest": "CreateCodexMCPRequest",
+	"ControllersPatchCodexMCPRequest": "PatchCodexMCPRequest",
+	"ControllersCodexMCPListResponse": "CodexMCPListResponse",
+	"ControllersCodexMCPMutationResponse": "CodexMCPMutationResponse",
+	"ControllersCodexMCPNameParam": "CodexMCPNameParam",
+	"DomainCodexMCPConfig": "CodexMCPConfig",
+	"SettingsCodexMCPPatch": "CodexMCPPatch",
+	"SettingsCodexMCPStatus": "CodexMCPStatus",
 	"ControllersDesktopWorkspaceLocationResponse":          "DesktopWorkspaceLocationResponse",
 	"ControllersDesktopArtifactLocationResponse":           "DesktopArtifactLocationResponse",
 	"ControllersUpdateSessionInterfaceRequest":             "UpdateSessionInterfaceRequest",
@@ -905,6 +913,7 @@ type operation struct {
 func operations() []operation {
 	ops := append([]operation{}, eventOperations()...)
 	ops = append(ops, agentOperations()...)
+	ops = append(ops, codexMCPOperations()...)
 	ops = append(ops, projectOperations()...)
 	ops = append(ops, sessionOperations()...)
 	ops = append(ops, automationOperations()...)

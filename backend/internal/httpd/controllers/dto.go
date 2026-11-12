@@ -17,11 +17,33 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/computeruse"
 	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
 	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
+	settingssvc "github.com/aoagents/agent-orchestrator/backend/internal/service/settings"
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/systemcheck"
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/systeminstall"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
 )
+
+// CreateCodexMCPRequest 仅接受引用配置。
+type CreateCodexMCPRequest struct{ domain.CodexMCPConfig }
+
+// PatchCodexMCPRequest 通过指针字段保留省略值。
+type PatchCodexMCPRequest struct{ settingssvc.CodexMCPPatch }
+
+// CodexMCPListResponse 不包含任何解析后的凭据。
+type CodexMCPListResponse struct {
+	Servers []settingssvc.CodexMCPStatus `json:"servers"`
+}
+
+// CodexMCPMutationResponse 明确保存不修改当前会话。
+type CodexMCPMutationResponse struct {
+	NewSessionsOnly bool `json:"newSessionsOnly"`
+}
+
+// CodexMCPNameParam 标识机器级配置。
+type CodexMCPNameParam struct {
+	Name string `path:"name"`
+}
 
 // CreateReportRequest is the local caller-to-daemon report submission contract.
 // SessionID attributes the report; like the rest of AO's unauthenticated

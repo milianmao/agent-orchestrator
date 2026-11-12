@@ -393,13 +393,16 @@ type ChatResumeConfig struct {
 // Secrets stay in Env/Headers and are sent only to the local provider process;
 // this value is never part of a conversation snapshot.
 type ChatMCPServerConfig struct {
-	Name    string
-	Type    string
-	Command string
-	Args    []string
-	Env     map[string]string
-	URL     string
-	Headers map[string]string
+	// EnvRefs/HeaderRefs 仅保存引用名；真实值由 Codex 投递边界解析。
+	EnvRefs    map[string]string
+	HeaderRefs map[string]string
+	Name       string
+	Type       string
+	Command    string
+	Args       []string
+	Env        map[string]string
+	URL        string
+	Headers    map[string]string
 }
 
 // ChatInternalReplayResourceURI is reserved for AO's reconstructed edit context.
