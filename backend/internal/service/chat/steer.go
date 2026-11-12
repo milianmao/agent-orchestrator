@@ -585,6 +585,17 @@ func (c *Controller) steerLockedForTurn(
 		}
 	}
 
+	providerMessage, err = c.withAdditionalInstructions(ctx, providerMessage)
+	if err != nil {
+		if msg.ClientMessageID != "" {
+			err = errors.Join(err, c.store.RejectSteerDelivery(context.WithoutCancel(ctx), c.conversation.ID,
+				msg.ClientMessageID, domain.ConversationSteerRejectedContentUnsupported, "Additional instructions could not be loaded", c.now()))
+		}
+		if len(batch) > 0 {
+			err = errors.Join(err, c.store.ReleaseQueuedBatch(context.WithoutCancel(ctx), c.conversation.ID, queuedBatchIDs(batch)))
+		}
+		return SteerResult{}, fmt.Errorf("load additional instructions: %w", err)
+	}
 	ref, err := steerer.Steer(ctx, turn, providerMessage)
 	if err != nil {
 		kind, definitive, refused := classifySteerRejection(err)
