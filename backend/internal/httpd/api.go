@@ -67,6 +67,7 @@ type APIDeps struct {
 	ConversationSearch controllers.ConversationSearch
 	// Settings is the daemon-owned preference surface.
 	Settings  controllers.SettingsService
+	CodexMCP  *controllers.CodexMCPController
 	DevImport controllers.DevImportService
 	CDC       cdc.Source
 	Events    cdcSubscriber
@@ -226,6 +227,7 @@ type API struct {
 	cues          *controllers.CuesController
 	conversations *controllers.ConversationsController
 	settings      *controllers.SettingsController
+	codexMCP      *controllers.CodexMCPController
 	dev           *controllers.DevController
 	browser       *controllers.BrowserController
 	system        *controllers.SystemController
@@ -294,6 +296,7 @@ func newAPIWithLogger(cfg config.Config, deps APIDeps, log *slog.Logger) *API {
 		cues:          &controllers.CuesController{Svc: deps.Cues},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations, Renders: attachmentstore.New(cfg.DataDir), Search: deps.ConversationSearch, UserMessages: userMessageRecorder(deps.Sessions)},
 		settings:      &controllers.SettingsController{Svc: deps.Settings},
+		codexMCP:      deps.CodexMCP,
 		dev:           &controllers.DevController{Import: deps.DevImport},
 		browser:       &controllers.BrowserController{Svc: deps.Browser, Chrome: deps.BrowserChrome},
 		system:        &controllers.SystemController{Checks: deps.SystemChecks},
@@ -443,6 +446,11 @@ func (a *API) Register(root chi.Router) {
 			a.cues.Register(r)
 			a.conversations.Register(r)
 			a.settings.Register(r)
+			if a.codexMCP != nil {
+				a.codexMCP.Register(r)
+			} else {
+				(&controllers.CodexMCPController{}).Register(r)
+			}
 			a.dev.Register(r)
 			a.browser.Register(r)
 			a.system.Register(r)

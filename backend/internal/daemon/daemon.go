@@ -1205,6 +1205,7 @@ func Run(buildVersion string) error {
 		Conversations:      chatSvc,
 		ConversationSearch: store,
 		Settings:           settingsSvc,
+		CodexMCP:           &controllers.CodexMCPController{Svc: &settingssvc.CodexMCPService{Store: store}},
 		CDC:                store,
 		Events:             cdcPipe.Broadcaster,
 		Activity:           hookActivity,

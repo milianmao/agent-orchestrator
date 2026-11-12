@@ -9,6 +9,7 @@ import { BrowserDownloadsSection } from "./BrowserDownloadsSection";
 import { BrowserProfilesSection } from "./BrowserProfilesSection";
 import { CoderSettingsSection } from "./CoderSettingsSection";
 import { CodexAccountsSection } from "./CodexAccountsSection";
+import { CodexMCPSection } from "./CodexMCPSection";
 import { ComputerUseSection } from "./ComputerUseSection";
 import { ConnectMobileContent } from "./ConnectMobileContent";
 import { GeneralSettingsSection } from "./GeneralSettingsSection";
@@ -89,7 +90,7 @@ const globalSettingsCatalog: SettingsCatalogItem[] = [
 		// In developer mode, subscription accounts live on each CLI's Harness
 		// Account tab instead.
 		visible: ({ developerMode }) => !developerMode,
-		render: (_t, titleHidden) => <CodexAccountsSection titleHidden={titleHidden} />,
+		render: (_t, titleHidden) => <><CodexAccountsSection titleHidden={titleHidden} /><CodexMCPSection /></>,
 	},
 	{
 		id: "billing",

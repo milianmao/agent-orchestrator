@@ -269,6 +269,12 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 	// config is shared with the callback below, which fills that one key in before
 	// the driver reads the list.
 	mcpServers := m.aoMCPServers(ctx, in.cfg.Harness, env, in.cfg.WorkflowSpawn)
+	userMCPServers, mcpErr := m.codexMCPServers(ctx, id, in.cfg.Harness, true)
+	if mcpErr != nil {
+		m.rollbackSeedSpawnWorkspace(ctx, in.record, in.workspace, in.workspaceProject, false, in.promptQueued)
+		return domain.SessionRecord{}, wrapSpawnStage(id, ErrChatController, mcpErr)
+	}
+	mcpServers = append(mcpServers, userMCPServers...)
 	readOnly, err := m.workflowPlanner(ctx, in.cfg.WorkflowSpawn)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, in.record, in.workspace, in.workspaceProject, false, in.promptQueued)
@@ -614,6 +620,11 @@ func (m *Manager) resumeChatController(
 		m.augmentAgentRuntimeEnv(agent, env)
 	}
 	resumeMCPServers := m.aoMCPServers(ctx, rec.Harness, env, workflowContext)
+	userMCPServers, mcpErr := m.codexMCPServers(ctx, rec.ID, rec.Harness, false)
+	if mcpErr != nil {
+		return RestoreResult{}, mcpErr
+	}
+	resumeMCPServers = append(resumeMCPServers, userMCPServers...)
 	readOnly, err := m.workflowPlanner(ctx, workflowContext)
 	if err != nil {
 		return RestoreResult{}, err

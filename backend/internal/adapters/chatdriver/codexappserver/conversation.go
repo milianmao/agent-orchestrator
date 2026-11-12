@@ -44,10 +44,12 @@ var approvalMethods = map[string]domain.ActivityKind{
 
 // conversation is one live Codex thread. It is the only writer to that thread.
 type conversation struct {
-	profile string
-	conn    *conn
-	proc    *process
-	log     *slog.Logger
+	// sensitiveMCP 标记带凭据引用的服务器，诊断不得回显 provider 原始错误。
+	sensitiveMCP sync.Map
+	profile      string
+	conn         *conn
+	proc         *process
+	log          *slog.Logger
 
 	threadID        string
 	historyParentID string
@@ -196,6 +198,11 @@ func (c *conversation) pump() {
 		// as an absolute instant and has to become a remaining duration, and a
 		// normalizer that reads the clock itself cannot be tested deterministically.
 		for _, ev := range normalizeNotification(n, now) {
+			for i := range ev.MCPServers {
+				if _, sensitive := c.sensitiveMCP.Load(ev.MCPServers[i].Name); sensitive && ev.MCPServers[i].Error != "" {
+					ev.MCPServers[i].Error = "MCP server startup failed; check referenced credentials and server availability"
+				}
+			}
 			ev = usageLimits.decorate(ev, now)
 			threadID := ev.ProviderConversationID
 			if threadID == "" {
@@ -952,7 +959,7 @@ func (c *conversation) refuseDynamicToolCall(params json.RawMessage) error {
 func (c *conversation) ReloadMCPServers(ctx context.Context) (ports.ChatMCPReloadResult, error) {
 	// config/mcpServer/reload takes no params, verified against a live app-server.
 	if err := c.conn.request(ctx, codexproto.MethodConfigMcpServerReload, map[string]any{}, nil); err != nil {
-		return ports.ChatMCPReloadResult{}, fmt.Errorf("%s: %w", codexproto.MethodConfigMcpServerReload, err)
+		return ports.ChatMCPReloadResult{}, fmt.Errorf("%s: %w", codexproto.MethodConfigMcpServerReload, c.mcpDiagnosticError(err))
 	}
 
 	// toolsAndAuthOnly avoids the resource schemas from the full response while
@@ -975,7 +982,7 @@ func (c *conversation) ReloadMCPServers(ctx context.Context) (ports.ChatMCPReloa
 			// The reload itself succeeded. Mark the inventory unavailable so the
 			// controller retains known state rather than mistaking failure for an
 			// authoritative empty configuration.
-			c.log.Debug("mcp server list after reload failed", "error", err)
+			c.log.Debug("mcp server list after reload failed", "error", c.mcpDiagnosticError(err))
 			return ports.ChatMCPReloadResult{}, nil
 		}
 		for _, entry := range resp.Data {

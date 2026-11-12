@@ -49,6 +49,7 @@ import { Button } from "../../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { describeHarness, supportsUpdate, type AgentAuthState, type AgentOperation, type HarnessDetails, type OperationAttempt } from "./describe-harness";
 import { HarnessAccountTab } from "./HarnessAccountTab";
+import { CodexMCPSection } from "../CodexMCPSection";
 import { closeAuthTerminal, type AuthTerminalWorkflow } from "./HarnessAuthTerminalPanel";
 import { diagnosticsText, healthText, machineText } from "./harness-diagnostics";
 import { HarnessHealthTab } from "./HarnessHealthTab";
@@ -871,8 +872,10 @@ export function LocalHarnessContent({ focusAgentId, hostId, search, onDetailChan
 								<TabsTrigger className={HARNESS_TAB_CLASS} value="account">{t("settings.harness.tabAccount")}</TabsTrigger>
 								<TabsTrigger className={HARNESS_TAB_CLASS} value="models">{t("settings.harness.tabModels")}</TabsTrigger>
 								<TabsTrigger className={HARNESS_TAB_CLASS} value="health">{t("settings.harness.tabHealth")}</TabsTrigger>
+								{selectedDetails.agentId === "codex" && !hostId && <TabsTrigger className={HARNESS_TAB_CLASS} value="mcp">{t("codexMcp.tab")}</TabsTrigger>}
 							</TabsList>
 							<TabsContent value="account" className="settings-thin-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pt-4">{accountTab(selectedDetails)}</TabsContent>
+							{selectedDetails.agentId === "codex" && !hostId && <TabsContent value="mcp" className="min-h-0 flex-1 overflow-y-auto pt-4"><CodexMCPSection /></TabsContent>}
 							<TabsContent value="models" className="min-h-0 min-w-0 overflow-hidden pt-4 data-[state=active]:flex data-[state=active]:flex-col">
 								<HarnessModelsPanel
 									agentId={selectedDetails.agentId}
