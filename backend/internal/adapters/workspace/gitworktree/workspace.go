@@ -648,7 +648,7 @@ func (w *Workspace) CreateWorkspaceProject(ctx context.Context, cfg ports.Worksp
 			if cfg.FreshBranch {
 				rootSHA = creationSHA
 			}
-			out.Root = ports.WorkspaceInfo{Path: repo.outputPath, Branch: branch, BaseSHA: rootSHA, BaseRef: repo.baseRef, SessionID: cfg.SessionID, ProjectID: cfg.ProjectID}
+			out.Root = ports.WorkspaceInfo{Path: repo.outputPath, WorktreeRoot: sessionRoot, Branch: branch, BaseSHA: rootSHA, BaseRef: repo.baseRef, SessionID: cfg.SessionID, ProjectID: cfg.ProjectID}
 		}
 		if repoIndex == 0 {
 			_, rootAlreadyExisted := existing[repoIndex]

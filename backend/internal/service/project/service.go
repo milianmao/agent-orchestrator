@@ -785,6 +785,11 @@ func (m *Service) UpdateSettings(ctx context.Context, id domain.ProjectID, in Up
 	if root != "" {
 		in.Config.WorktreeRoot = root
 	}
+	// A body that never named worktreeRoot keeps whatever the project saved; only
+	// an explicit value (or an explicit empty string) replaces it.
+	if !in.WorktreeRootPresent {
+		in.Config.WorktreeRoot = row.Config.WorktreeRoot
+	}
 	updated, err := m.store.UpdateProjectSettings(ctx, string(id), inDisplayName, in.Config)
 	if err != nil {
 		return Project{}, apierr.Internal("PROJECT_SETTINGS_UPDATE_FAILED", "Failed to update project settings")
@@ -827,6 +832,11 @@ func (m *Service) SetConfig(ctx context.Context, id domain.ProjectID, in SetConf
 	}
 	if root != "" {
 		in.Config.WorktreeRoot = root
+	}
+	// See UpdateSettings: an absent key preserves the saved root so an older CLI
+	// read-modify-write cannot clear it.
+	if !in.WorktreeRootPresent {
+		in.Config.WorktreeRoot = row.Config.WorktreeRoot
 	}
 	row.Config = in.Config
 	if err := m.store.UpsertProject(ctx, row); err != nil {

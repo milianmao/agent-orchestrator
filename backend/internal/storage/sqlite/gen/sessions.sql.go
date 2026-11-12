@@ -2226,20 +2226,40 @@ func (q *Queries) UpdateBrowserCapabilityVerifier(ctx context.Context, arg Updat
 
 const updateSession = `-- name: UpdateSession :exec
 UPDATE sessions SET
-    issue_id = ?, kind = ?, harness = ?, reviewer_harness = ?, reviewer_agent_config = ?, auto_review_enabled = ?,
-    activity_state = ?, activity_last_at = ?, first_signal_at = ?, is_terminated = ?,
-    branch = CASE WHEN temporary_branch <> '' AND temporary_branch = ? THEN branch ELSE ? END, workspace_path = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?, worktree_root = ?,
-    runtime_launch_id = ?, agent_session_id = ?, agent_session_id_launch_id = ?, native_identity_observed_at = ?, prompt = ?,
-    latest_user_prompt = ?, latest_user_prompt_at = ?, latest_assistant_update = ?, latest_assistant_update_at = ?,
-    conversation_checkpoint_state = ?, conversation_checkpoint_generation = ?, conversation_checkpoint_native_id = ?,
-    conversation_checkpoint_unsettled = ?, conversation_checkpoint_turn_id = ?, native_checkpoint_evidence = ?,
-    native_transcript_path = ?,
-    preview_url = ?, preview_revision = ?, terminate_on_pr_merge = ?,
-    cleanup_generation = ?, browser_capability_verifier = ?,
-    provider_conversation_id = ?, controller_generation = ?, model = ?, effort = ?, updated_at = ?,
-    is_pinned = ?, pinned_at = ?, auto_inject_review = ?, auto_inject_ci = ?,
-    automation_launch_completed = ?
-WHERE id = ?
+    issue_id = ?1, kind = ?2, harness = ?3,
+    reviewer_harness = ?4, reviewer_agent_config = ?5,
+    auto_review_enabled = ?6,
+    activity_state = ?7, activity_last_at = ?8,
+    first_signal_at = ?9, is_terminated = ?10,
+    branch = CASE WHEN temporary_branch <> '' AND temporary_branch = ?11 THEN branch ELSE ?12 END,
+    workspace_path = ?13, workspace_repo_path = ?14,
+    diff_base_sha = ?15, diff_base_ref = ?16,
+    runtime_handle_id = ?17,
+    worktree_root = COALESCE(?18, worktree_root),
+    runtime_launch_id = ?19, agent_session_id = ?20,
+    agent_session_id_launch_id = ?21,
+    native_identity_observed_at = ?22, prompt = ?23,
+    latest_user_prompt = ?24, latest_user_prompt_at = ?25,
+    latest_assistant_update = ?26,
+    latest_assistant_update_at = ?27,
+    conversation_checkpoint_state = ?28,
+    conversation_checkpoint_generation = ?29,
+    conversation_checkpoint_native_id = ?30,
+    conversation_checkpoint_unsettled = ?31,
+    conversation_checkpoint_turn_id = ?32,
+    native_checkpoint_evidence = ?33,
+    native_transcript_path = ?34,
+    preview_url = ?35, preview_revision = ?36,
+    terminate_on_pr_merge = ?37,
+    cleanup_generation = ?38,
+    browser_capability_verifier = ?39,
+    provider_conversation_id = ?40,
+    controller_generation = ?41, model = ?42,
+    effort = ?43, updated_at = ?44,
+    is_pinned = ?45, pinned_at = ?46,
+    auto_inject_review = ?47, auto_inject_ci = ?48,
+    automation_launch_completed = ?49
+WHERE id = ?50
 `
 
 type UpdateSessionParams struct {
@@ -2260,7 +2280,7 @@ type UpdateSessionParams struct {
 	DiffBaseSha                      string
 	DiffBaseRef                      string
 	RuntimeHandleID                  string
-	WorktreeRoot                     string
+	WorktreeRoot                     sql.NullString
 	RuntimeLaunchID                  string
 	AgentSessionID                   string
 	AgentSessionIDLaunchID           string
@@ -2297,6 +2317,8 @@ type UpdateSessionParams struct {
 
 // The title has narrow writers only, and a renamed task's temporary branch is
 // never written back, so a write from an older read cannot undo either.
+// worktree_root is creation-time evidence: a NULL carries "this writer does not
+// know it", and COALESCE keeps the stored snapshot instead of erasing it.
 func (q *Queries) UpdateSession(ctx context.Context, arg UpdateSessionParams) error {
 	_, err := q.db.ExecContext(ctx, updateSession,
 		arg.IssueID,

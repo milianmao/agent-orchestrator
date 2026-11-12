@@ -349,3 +349,150 @@ func runGit(t *testing.T, dir string, args ...string) {
 		t.Fatalf("git %s: %v (%s)", strings.Join(args, " "), err, out)
 	}
 }
+
+// TestSetConfigWithoutWorktreeRootKeepsSavedRoot covers the older-client path: a
+// read-modify-write that never knew the field must not erase a saved root, while
+// an explicit empty value still clears it.
+func TestSetConfigWithoutWorktreeRootKeepsSavedRoot(t *testing.T) {
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	repo := gitRepo(t)
+	custom := filepath.Join(t.TempDir(), "custom-root")
+	added, err := m.Add(ctx, project.AddInput{
+		Path:   repo,
+		Config: &domain.ProjectConfig{WorktreeRoot: custom},
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	// An old client's config has no worktreeRoot at all: WorktreeRootPresent
+	// stays false and the saved root survives.
+	if _, err := m.SetConfig(ctx, added.ID, project.SetConfigInput{
+		Config: domain.ProjectConfig{SessionPrefix: "old-client"},
+	}); err != nil {
+		t.Fatalf("SetConfig from an old client: %v", err)
+	}
+	got, err := m.Get(ctx, added.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Project.Config == nil || got.Project.Config.WorktreeRoot != custom {
+		t.Fatalf("saved root = %+v, want %q preserved", got.Project.Config, custom)
+	}
+	if got.Project.Config.SessionPrefix != "old-client" {
+		t.Fatalf("session prefix = %q, want the rest of the config applied", got.Project.Config.SessionPrefix)
+	}
+
+	// An explicit empty value is a real clear.
+	if _, err := m.SetConfig(ctx, added.ID, project.SetConfigInput{
+		Config:              domain.ProjectConfig{},
+		WorktreeRootPresent: true,
+	}); err != nil {
+		t.Fatalf("SetConfig clearing the root: %v", err)
+	}
+	got, err = m.Get(ctx, added.ID)
+	if err != nil {
+		t.Fatalf("Get after clear: %v", err)
+	}
+	if got.Project.Config != nil && got.Project.Config.WorktreeRoot != "" {
+		t.Fatalf("saved root = %q, want cleared", got.Project.Config.WorktreeRoot)
+	}
+}
+
+// TestUpdateSettingsWithoutWorktreeRootKeepsSavedRoot covers the same rule on the
+// settings endpoint, which the settings form uses.
+func TestUpdateSettingsWithoutWorktreeRootKeepsSavedRoot(t *testing.T) {
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	repo := gitRepo(t)
+	custom := filepath.Join(t.TempDir(), "settings-root")
+	added, err := m.Add(ctx, project.AddInput{
+		Path:   repo,
+		Config: &domain.ProjectConfig{WorktreeRoot: custom},
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if _, err := m.UpdateSettings(ctx, added.ID, project.UpdateSettingsInput{
+		DisplayName: "Renamed",
+		Config:      domain.ProjectConfig{AutoReview: true},
+	}); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	got, err := m.Get(ctx, added.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Project.Config == nil || got.Project.Config.WorktreeRoot != custom {
+		t.Fatalf("saved root = %+v, want %q preserved", got.Project.Config, custom)
+	}
+	if got.Project.Name != "Renamed" || !got.Project.Config.AutoReview {
+		t.Fatalf("rest of the settings update lost: %+v", got.Project)
+	}
+}
+
+// TestWorktreeRootSymlinkSpellingConflicts covers M2: a junction/symlink spelling
+// of another project's root must be recognised as the SAME root, because the two
+// paths address one directory on disk.
+func TestWorktreeRootSymlinkSpellingConflicts(t *testing.T) {
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	parent := t.TempDir()
+	realRoot := filepath.Join(parent, "real-root")
+	linkRoot := filepath.Join(parent, "linked-root")
+	if err := os.MkdirAll(realRoot, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(realRoot, linkRoot); err != nil {
+		t.Skipf("symlinks unavailable on this host: %v", err)
+	}
+
+	if _, err := m.Add(ctx, project.AddInput{
+		Path:   gitRepo(t),
+		Config: &domain.ProjectConfig{WorktreeRoot: realRoot},
+	}); err != nil {
+		t.Fatalf("Add first project: %v", err)
+	}
+	_, err := m.Add(ctx, project.AddInput{
+		Path:   gitRepo(t),
+		Config: &domain.ProjectConfig{WorktreeRoot: linkRoot},
+	})
+	wantCode(t, err, "WORKTREE_ROOT_CONFLICT")
+}
+
+// TestWorktreeRootCreationRollsBackOnValidationFailure covers M3: a root this call
+// created is removed when the same call then rejects it, and a folder that already
+// existed is never removed by a failed validation.
+func TestWorktreeRootCreationRollsBackOnValidationFailure(t *testing.T) {
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	repo := gitRepo(t)
+
+	// Created inside the project repository: creation happens first, then the
+	// inside-repo rule rejects it, and the new folder must not survive.
+	inside := filepath.Join(repo, "worktrees-root")
+	_, err := m.Add(ctx, project.AddInput{
+		Path:   repo,
+		Config: &domain.ProjectConfig{WorktreeRoot: inside},
+	})
+	wantCode(t, err, "WORKTREE_ROOT_INSIDE_REPO")
+	if _, statErr := os.Stat(inside); !os.IsNotExist(statErr) {
+		t.Fatalf("rejected root survived at %s: %v", inside, statErr)
+	}
+
+	// A pre-existing empty folder rejected for another reason stays untouched.
+	existing := filepath.Join(t.TempDir(), "existing-empty")
+	if err := os.MkdirAll(existing, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Add(ctx, project.AddInput{
+		Path:   gitRepo(t),
+		Config: &domain.ProjectConfig{WorktreeRoot: existing},
+	}); err != nil {
+		t.Fatalf("Add with a pre-existing empty root: %v", err)
+	}
+	if info, statErr := os.Stat(existing); statErr != nil || !info.IsDir() {
+		t.Fatalf("pre-existing root removed after success: %v", statErr)
+	}
+}

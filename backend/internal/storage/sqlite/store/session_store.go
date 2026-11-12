@@ -1374,6 +1374,9 @@ func recordToUpdate(rec domain.SessionRecord) gen.UpdateSessionParams {
 		Effort:                           rec.Metadata.Effort,
 		UpdatedAt:                        rec.UpdatedAt,
 		AutomationLaunchCompleted:        rec.AutomationLaunchCompleted,
+		// Empty means "this writer does not know the snapshot", which must keep the
+		// stored value: the root is creation-time evidence, not a mutable field.
+		WorktreeRoot: nullStringIfNotEmpty(rec.Metadata.WorktreeRoot),
 	}
 }
 
@@ -1431,6 +1434,15 @@ func nullTimeToTime(t sql.NullTime) time.Time {
 		return time.Time{}
 	}
 	return t.Time
+}
+
+// nullStringIfNotEmpty maps an optional snapshot value to a nullable column
+// argument: empty is NULL, which COALESCE turns into "keep the stored value".
+func nullStringIfNotEmpty(value string) sql.NullString {
+	if value == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: value, Valid: true}
 }
 
 func timeToNullTime(t time.Time) sql.NullTime {

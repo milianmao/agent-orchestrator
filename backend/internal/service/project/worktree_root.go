@@ -60,51 +60,63 @@ func (m *Service) validateWorktreeRootSelection(ctx context.Context, projectID d
 		return "", apierr.Invalid("INVALID_WORKTREE_ROOT", err.Error(), map[string]any{"worktreeRoot": trimmed})
 	}
 	clean := filepath.Clean(trimmed)
-	physical, err := m.prepareWorktreeRootDirectory(clean)
+	physical, created, err := m.prepareWorktreeRootDirectory(clean)
 	if err != nil {
 		return "", err
 	}
-	if err := rejectWorktreeRootInsideRepo(projectID, projectPath, physical); err != nil {
+	// Any later rule can still reject this root. A folder this call created must
+	// not be left behind by that rejection; a folder that already existed is
+	// never removed, so a failed save cannot destroy a user's directory.
+	reject := func(err error) (string, error) {
+		if created {
+			_ = os.Remove(clean)
+		}
 		return "", err
 	}
+	if err := rejectWorktreeRootInsideRepo(projectID, projectPath, physical); err != nil {
+		return reject(err)
+	}
 	if err := m.rejectWorktreeRootConflicts(ctx, projectID, physical); err != nil {
-		return "", err
+		return reject(err)
 	}
 	return physical, nil
 }
 
 // prepareWorktreeRootDirectory makes sure root exists as a writable directory,
 // creating it ONLY beneath an existing parent. It returns root's physical path.
-func (m *Service) prepareWorktreeRootDirectory(root string) (string, error) {
-	info, err := os.Stat(root)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		parent, parentErr := filepath.EvalSymlinks(filepath.Dir(root))
-		if parentErr != nil {
-			return "", apierr.Invalid("WORKTREE_ROOT_PARENT_MISSING",
+func (m *Service) prepareWorktreeRootDirectory(root string) (physicalPath string, created bool, err error) {
+	info, statErr := os.Stat(root)
+	if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
+		return "", false, apierr.Invalid("WORKTREE_ROOT_UNAVAILABLE", "The worktree root could not be inspected.", map[string]any{"worktreeRoot": root})
+	}
+	if statErr == nil && !info.IsDir() {
+		return "", false, apierr.Invalid("WORKTREE_ROOT_NOT_DIRECTORY", "The worktree root must be a folder.", map[string]any{"worktreeRoot": root})
+	}
+	if errors.Is(statErr, fs.ErrNotExist) {
+		if _, parentErr := filepath.EvalSymlinks(filepath.Dir(root)); parentErr != nil {
+			return "", false, apierr.Invalid("WORKTREE_ROOT_PARENT_MISSING",
 				"The worktree root's parent folder does not exist. Create it first, or choose another folder.",
 				map[string]any{"worktreeRoot": root, "parent": filepath.Dir(root)})
 		}
-		if err := os.Mkdir(root, 0o750); err != nil {
-			if errors.Is(err, fs.ErrPermission) {
-				return "", apierr.Invalid("WORKTREE_ROOT_NOT_WRITABLE", "AO is not allowed to create the worktree root folder.", map[string]any{"worktreeRoot": root})
+		if mkErr := os.Mkdir(root, 0o750); mkErr != nil {
+			if errors.Is(mkErr, fs.ErrPermission) {
+				return "", false, apierr.Invalid("WORKTREE_ROOT_NOT_WRITABLE", "AO is not allowed to create the worktree root folder.", map[string]any{"worktreeRoot": root})
 			}
-			return "", apierr.Invalid("WORKTREE_ROOT_UNAVAILABLE", "AO could not create the worktree root folder.", map[string]any{"worktreeRoot": root})
+			return "", false, apierr.Invalid("WORKTREE_ROOT_UNAVAILABLE", "AO could not create the worktree root folder.", map[string]any{"worktreeRoot": root})
 		}
-		return filepath.Join(parent, filepath.Base(root)), nil
-	case err != nil:
-		return "", apierr.Invalid("WORKTREE_ROOT_UNAVAILABLE", "The worktree root could not be inspected.", map[string]any{"worktreeRoot": root})
-	case !info.IsDir():
-		return "", apierr.Invalid("WORKTREE_ROOT_NOT_DIRECTORY", "The worktree root must be a folder.", map[string]any{"worktreeRoot": root})
+		created = true
 	}
-	physical, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return "", apierr.Invalid("WORKTREE_ROOT_UNAVAILABLE", "The worktree root could not be resolved.", map[string]any{"worktreeRoot": root})
+	// Every root is returned in physical form, so two spellings of one directory
+	// (a junction or symlinked path versus its target) compare equal and cannot
+	// both pass the cross-project conflict check.
+	physical, evalErr := filepath.EvalSymlinks(root)
+	if evalErr != nil {
+		return "", created, apierr.Invalid("WORKTREE_ROOT_UNAVAILABLE", "The worktree root could not be resolved.", map[string]any{"worktreeRoot": root})
 	}
-	if err := m.requireWorktreeRootUsable(physical); err != nil {
-		return "", err
+	if usableErr := m.requireWorktreeRootUsable(physical); usableErr != nil {
+		return "", created, usableErr
 	}
-	return physical, nil
+	return physical, created, nil
 }
 
 // requireWorktreeRootUsable reports whether AO can write beneath root. An

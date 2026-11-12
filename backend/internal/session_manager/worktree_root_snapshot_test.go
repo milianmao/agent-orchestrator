@@ -91,3 +91,29 @@ func TestSpawnRejectsMissingConfiguredWorktreeRoot(t *testing.T) {
 		t.Fatalf("Spawn error = %v, want ErrWorktreeRootUnavailable", err)
 	}
 }
+
+// TestWorkspaceProjectCreatesUnderCustomRoot covers the workspace-project half of
+// the root contract: CreateWorkspaceProject places every repo of the session
+// under the project's root and reports that root on both the session root info
+// and every repo row, which is what Spawn persists into session metadata.
+func TestWorkspaceProjectCreatesUnderCustomRoot(t *testing.T) {
+	m, st, _, ws := newManager()
+	customRoot := filepath.Join(t.TempDir(), "workspace root")
+	if err := os.MkdirAll(customRoot, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// Look the project up as a workspace project with a configured root; the fake
+	// adapter records the configuration it was handed.
+	project := st.projects["mer"]
+	project.Kind = domain.ProjectKindWorkspace
+	project.Config.WorktreeRoot = customRoot
+	st.projects["mer"] = project
+
+	_, _, _, err := m.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	if got := ws.lastProjectCfg.WorktreeRoot; got != customRoot {
+		t.Fatalf("workspace-project create root = %q, want %q", got, customRoot)
+	}
+}

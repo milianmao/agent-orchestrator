@@ -68,12 +68,20 @@ type InitializeRepositoryResult struct {
 type UpdateSettingsInput struct {
 	DisplayName string               `json:"displayName" minLength:"1" maxLength:"100"`
 	Config      domain.ProjectConfig `json:"config"`
+	// WorktreeRootPresent reports whether the request body carried a
+	// worktreeRoot key. JSON cannot otherwise tell "leave it alone" from "clear
+	// it": both decode to the empty string. A client that omits the key (any
+	// build older than the field) keeps the saved root instead of erasing it.
+	WorktreeRootPresent bool `json:"-"`
 }
 
 // SetConfigInput is the body shape for PUT /api/v1/projects/{id}/config. Config
 // replaces the project's stored config wholesale; a zero-value config clears it.
 type SetConfigInput struct {
 	Config domain.ProjectConfig `json:"config"`
+	// WorktreeRootPresent mirrors UpdateSettingsInput: false means the request
+	// did not name the field, so the stored root is preserved.
+	WorktreeRootPresent bool `json:"-"`
 }
 
 // RemoveResult reports what DELETE /api/v1/projects/{id} actually did.
