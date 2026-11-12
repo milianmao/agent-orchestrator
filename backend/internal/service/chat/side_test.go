@@ -205,6 +205,7 @@ func TestSideTurnStartsAndAcknowledgesDeferredACPProviderTurn(t *testing.T) {
 		t.Fatalf("claim second side turn: %#v, found=%v err=%v", next, found, err)
 	}
 	side.LaunchConfig = json.RawMessage(`{"AdditionalInstructions":"frozen policy"}`)
+	svc.store = &instructionsStore{text: "updated main policy"}
 	finished = make(chan struct{})
 	go func() { manager.runTurn(runtime, side, next); close(finished) }()
 	select {
@@ -225,7 +226,7 @@ func TestSideTurnStartsAndAcknowledgesDeferredACPProviderTurn(t *testing.T) {
 	conv.mu.Lock()
 	delivered := conv.lastText
 	conv.mu.Unlock()
-	if !strings.Contains(delivered, "frozen policy") || strings.Count(delivered, "<ao-user-additional-instructions>") != 1 {
+	if !strings.Contains(delivered, "frozen policy") || strings.Contains(delivered, "updated main policy") || strings.Count(delivered, "<ao-user-additional-instructions>") != 1 {
 		t.Fatalf("frozen instructions delivery = %q", delivered)
 	}
 	settled, err = manager.store.SideTurn(ctx, side.ID, next.ID)

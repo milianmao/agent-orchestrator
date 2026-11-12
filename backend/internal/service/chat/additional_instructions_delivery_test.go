@@ -93,12 +93,12 @@ func TestAdditionalInstructionsReadFailureRejectsSteer(t *testing.T) {
 	ctx := context.Background()
 	wrapped.fail.Store(true)
 	msg := ports.ChatUserMessage{Text: "guidance", ClientMessageID: "failure-steer"}
-	if _, err := h.svc.Steer(ctx, testSession, msg); err == nil {
-		t.Fatal("read failure accepted")
+	if _, err := h.svc.Steer(ctx, testSession, msg); !errors.Is(err, chatsvc.ErrSteerInstructionsUnavailable) || errors.Is(err, chatsvc.ErrSteerContentUnsupported) {
+		t.Fatalf("read failure classification = %v", err)
 	}
 	wrapped.fail.Store(false)
-	if _, err := h.svc.Steer(ctx, testSession, msg); err == nil {
-		t.Fatal("rejected delivery retried unexpectedly")
+	if _, err := h.svc.Steer(ctx, testSession, msg); !errors.Is(err, chatsvc.ErrSteerInstructionsUnavailable) || errors.Is(err, chatsvc.ErrSteerContentUnsupported) {
+		t.Fatalf("replayed failure classification = %v", err)
 	}
 	if calls := provider.steers(); len(calls) != 0 {
 		t.Fatalf("provider received %+v", calls)

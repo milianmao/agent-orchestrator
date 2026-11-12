@@ -1981,6 +1981,8 @@ func (m *sideManager) retryCleanup() {
 
 // frozenSideConfig contains the launch configuration that survives daemon recovery.
 // It is never included in renderer-facing side summaries.
+// Side instructions stay at their creation-time value across recovery; main-chat
+// deliveries instead read the latest session instructions at dispatch time.
 type frozenSideConfig struct {
 	AdditionalInstructions string
 	DataDir                string
