@@ -2,6 +2,7 @@ package controllers_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -30,6 +31,19 @@ type promptSuggestionStub struct {
 
 func (s *promptSuggestionStub) PromptSuggestion(_ context.Context, id domain.SessionID, turnID string) (string, error) {
 	s.called, s.session, s.turnID = true, id, turnID
+	return s.prompt, s.err
+}
+
+// draftPromptSuggestionStub records which entry point served the request and the
+// draft it received, so the route's dispatch is asserted rather than inferred.
+type draftPromptSuggestionStub struct {
+	*promptSuggestionStub
+	draft      string
+	polishCall bool
+}
+
+func (s *draftPromptSuggestionStub) PromptDraftSuggestion(_ context.Context, id domain.SessionID, turnID, draft string) (string, error) {
+	s.called, s.session, s.turnID, s.draft, s.polishCall = true, id, turnID, draft, true
 	return s.prompt, s.err
 }
 
@@ -119,5 +133,68 @@ func TestPromptSuggestionRouteIsOptional(t *testing.T) {
 	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/ao-1/conversation/prompt-suggestion", `{"turnId":"turn-7"}`)
 	if status != http.StatusNotImplemented {
 		t.Fatalf("unsupported suggestion: status=%d response=%s", status, body)
+	}
+}
+
+func TestPromptSuggestionRoutePolishesANonemptyDraftAndSuggestsForABlankOne(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		body   string
+		polish bool
+		draft  string
+	}{
+		{"omitted draft", `{"turnId":"turn-7"}`, false, ""},
+		{"empty draft", `{"turnId":"turn-7","draft":""}`, false, ""},
+		{"whitespace draft", `{"turnId":"turn-7","draft":"  \n\t "}`, false, ""},
+		{"polished draft", `{"turnId":"turn-7","draft":"fix the login bug"}`, true, "fix the login bug"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &draftPromptSuggestionStub{
+				promptSuggestionStub: &promptSuggestionStub{fakeChatService: &fakeChatService{}, prompt: "Fix the login bug, then run the auth tests."},
+			}
+			srv := promptSuggestionServer(t, svc)
+			body, status, headers := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/ao-1/conversation/prompt-suggestion", tt.body)
+			assertJSON(t, headers)
+			var response controllers.ConversationPromptSuggestionResponse
+			mustJSON(t, body, &response)
+			if status != http.StatusOK || response.TurnID != "turn-7" || response.Prompt != "Fix the login bug, then run the auth tests." {
+				t.Fatalf("suggestion route: status=%d response=%s", status, body)
+			}
+			if svc.polishCall != tt.polish || svc.draft != tt.draft {
+				t.Fatalf("draft dispatch: polish=%v draft=%q, want polish=%v draft=%q", svc.polishCall, svc.draft, tt.polish, tt.draft)
+			}
+		})
+	}
+}
+
+func TestPromptSuggestionRouteRejectsAnOversizedDraftBeforeProviderCall(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		draft string
+		ok    bool
+	}{
+		// The limit counts characters, not bytes: an astral-plane draft at the
+		// boundary is accepted even though it is four bytes per character.
+		{"at limit", strings.Repeat("😀", chatsvc.PromptSuggestionDraftLimit), true},
+		{"over limit", strings.Repeat("😀", chatsvc.PromptSuggestionDraftLimit+1), false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &draftPromptSuggestionStub{promptSuggestionStub: &promptSuggestionStub{fakeChatService: &fakeChatService{}}}
+			srv := promptSuggestionServer(t, svc)
+			payload, err := json.Marshal(controllers.ConversationPromptSuggestionRequest{TurnID: "turn-7", Draft: tt.draft})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/ao-1/conversation/prompt-suggestion", string(payload))
+			if !tt.ok {
+				if status != http.StatusBadRequest || !strings.Contains(string(body), `"code":"CHAT_PROMPT_DRAFT_TOO_LONG"`) || svc.called {
+					t.Fatalf("oversized draft: status=%d called=%v response=%s", status, svc.called, body)
+				}
+				return
+			}
+			if status != http.StatusOK || !svc.called {
+				t.Fatalf("draft at the limit: status=%d called=%v response=%s", status, svc.called, body)
+			}
+		})
 	}
 }

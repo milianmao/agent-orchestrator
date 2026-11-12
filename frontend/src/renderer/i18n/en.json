@@ -3403,6 +3403,7 @@
 	"chat.draftDiscard.stay": "Stay",
 	"chat.draftDiscard.leaveAnyway": "Leave anyway",
 	"chat.promptSuggestion.description": "Suggested next message: {{prompt}}. Press Tab to use it, or Escape to dismiss.",
+	"chat.promptSuggestion.polishedDescription": "Polished draft: {{prompt}}. Press Tab to use it, or Escape to keep your own text.",
 	"chat.edit.abandonRecovery": "Abandon edit recovery",
 	"chat.welcome.heading": "What do you want to work on?",
 	"chat.welcome.artifactHeading": "What do you want to create?",

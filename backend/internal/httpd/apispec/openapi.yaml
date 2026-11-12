@@ -21624,6 +21624,8 @@ components:
       type: object
     ConversationPromptSuggestionRequest:
       properties:
+        draft:
+          type: string
         turnId:
           type: string
       required:

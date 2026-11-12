@@ -3364,6 +3364,7 @@
 	"chat.draftDiscard.stay": "Ficar",
 	"chat.draftDiscard.leaveAnyway": "Sair mesmo assim",
 	"chat.promptSuggestion.description": "Próxima mensagem sugerida: {{prompt}}. Pressione Tab para usar ou Escape para dispensar.",
+	"chat.promptSuggestion.polishedDescription": "Rascunho aprimorado: {{prompt}}. Pressione Tab para usá-lo ou Escape para manter o seu texto.",
 	"chat.edit.abandonRecovery": "Abandonar recuperação da edição",
 	"chat.welcome.heading": "Em que você quer trabalhar?",
 	"chat.welcome.artifactHeading": "What do you want to create?",

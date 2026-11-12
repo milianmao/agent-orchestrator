@@ -3423,6 +3423,7 @@
 	"chat.draftDiscard.stay": "Остаться",
 	"chat.draftDiscard.leaveAnyway": "Всё равно выйти",
 	"chat.promptSuggestion.description": "Предлагаемое следующее сообщение: {{prompt}}. Нажмите Tab, чтобы использовать его, или Escape, чтобы отклонить.",
+	"chat.promptSuggestion.polishedDescription": "Улучшенный черновик: {{prompt}}. Нажмите Tab, чтобы принять, или Escape, чтобы оставить свой текст.",
 	"chat.edit.abandonRecovery": "Отказаться от восстановления изменения",
 	"chat.welcome.heading": "Над чем вы хотите поработать?",
 	"chat.welcome.artifactHeading": "Что вы хотите создать?",
