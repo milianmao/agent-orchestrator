@@ -22,7 +22,7 @@ func TestTaskBaseUsesOnlyExistingBranches(t *testing.T) {
 	git("branch", "feature/local")
 	git("update-ref", "refs/remotes/origin/feature/remote", "HEAD")
 	project := domain.ProjectRecord{ID: "test", Path: repo}
-	for input, want := range map[string]string{"feature/local": "refs/heads/feature/local", "origin/feature/remote": "refs/remotes/origin/feature/remote"} {
+	for input, want := range map[string]string{"feature/local": "refs/heads/feature/local", "origin/feature/remote": "refs/remotes/origin/feature/remote", "feature/remote": "refs/remotes/origin/feature/remote"} {
 		got, err := resolveTaskBase(context.Background(), project, input)
 		if err != nil || got != want {
 			t.Fatalf("resolve %q = %q, %v; want %q", input, got, err, want)
@@ -36,5 +36,9 @@ func TestTaskBaseUsesOnlyExistingBranches(t *testing.T) {
 	project.Kind = domain.ProjectKindScratch
 	if _, err := resolveTaskBase(context.Background(), project, "main"); err == nil {
 		t.Fatal("scratch accepted explicit base")
+	}
+	project.Kind = domain.ProjectKindWorkspace
+	if _, err := resolveTaskBase(context.Background(), project, "main"); err == nil {
+		t.Fatal("workspace accepted explicit base")
 	}
 }

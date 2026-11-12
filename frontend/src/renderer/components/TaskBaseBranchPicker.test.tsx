@@ -29,3 +29,15 @@ it("focuses an unresolved branch and reports a read failure", () => {
 	expect(screen.getByRole("button", { name: "Base branch" })).toHaveFocus();
 	expect(screen.getByRole("alert")).toBeInTheDocument();
 });
+
+it("shows loading and then an empty repository without offering an invented default", async () => {
+	const props = { value: "", error: false, disabled: false, onChange: vi.fn() };
+	const { rerender } = render(<TaskBaseBranchPicker {...props} loading />);
+	await userEvent.click(screen.getByRole("button", { name: "Base branch" }));
+	expect(screen.getByText("Loading branches…")).toBeInTheDocument();
+	expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+	rerender(<TaskBaseBranchPicker {...props} loading={false} />);
+	expect(screen.queryByText("Loading branches…")).not.toBeInTheDocument();
+	expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+	expect(props.onChange).not.toHaveBeenCalled();
+});
