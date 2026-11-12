@@ -3998,13 +3998,16 @@ func (m *Manager) relaunchSessionWithPolicyAndGeneration(ctx context.Context, op
 		}
 	}
 	metadata := domain.SessionMetadata{
-		Permissions:               rec.Metadata.Permissions,
-		Branch:                    ws.Branch,
-		WorkspacePath:             ws.Path,
-		WorkspaceRepoPath:         ws.RepoPath,
-		RuntimeHandleID:           handle.ID,
-		RuntimeLaunchID:           launchID,
-		AgentSessionID:            rec.Metadata.AgentSessionID,
+		Permissions:       rec.Metadata.Permissions,
+		Branch:            ws.Branch,
+		WorkspacePath:     ws.Path,
+		WorkspaceRepoPath: ws.RepoPath,
+		RuntimeHandleID:   handle.ID,
+		RuntimeLaunchID:   launchID,
+		AgentSessionID:    rec.Metadata.AgentSessionID,
+		// 恢复沿用创建时固定的比较基线，不跟随项目后续的基础分支配置。
+		DiffBaseSHA:               rec.Metadata.DiffBaseSHA,
+		DiffBaseRef:               rec.Metadata.DiffBaseRef,
 		Prompt:                    savedPrompt,
 		BrowserCapabilityVerifier: rec.Metadata.BrowserCapabilityVerifier,
 	}

@@ -3515,6 +3515,31 @@ it("creates a Coder project's session only on send too, through the same create"
 });
 
 describe("useTaskLaunch on the new chat page", () => {
+	it("ignores an old base preparation and sends without a token while the current base is pending", async () => {
+		h.get.mockImplementation(async (path: string) => path.endsWith("/branches") ? { data: { default: "main", branches: [] } } : { data: { status: "ok", project: { id: "proj-1", config: { worker: { agent: "claude-code" } } } } });
+		let oldReady!: (value: unknown) => void;
+		let currentReady!: (value: unknown) => void;
+		h.post.mockImplementation(async (path: string, options: { body?: { baseBranch?: string } }) => {
+			if (path.endsWith("/prepare")) return options.body?.baseBranch === "main" ? new Promise((resolve) => { oldReady = resolve; }) : new Promise((resolve) => { currentReady = resolve; });
+			return { data: { workerId: "worker-1" } };
+		});
+		let task!: ReturnType<typeof useTaskLaunch>;
+		function Launcher() { task = useTaskLaunch({ projectId: "proj-1", chooseTaskBase: true }); return null; }
+		render(<Wrap><Launcher /></Wrap>);
+		await waitFor(() => expect(oldReady).toBeTypeOf("function"));
+		act(() => task.setBaseBranch("topic"));
+		expect(task.preparedSessionId).toBe("");
+		await act(async () => { await task.launch("Fix it"); });
+		expect(h.post).toHaveBeenCalledWith("/api/v1/orchestrators/delegate", expect.objectContaining({ body: expect.objectContaining({ baseBranch: "topic" }) }));
+		const sent = h.post.mock.calls.find(([path]) => path === "/api/v1/orchestrators/delegate")?.[1];
+		expect(sent.body.taskPreparation).toBeUndefined();
+		await act(async () => currentReady({ data: { taskPreparation: "current-token" } }));
+		await act(async () => oldReady({ data: { taskPreparation: "old-token" } }));
+		expect(task.preparedSessionId).toBe("current-token");
+		expect(h.delete).toHaveBeenCalledWith("/api/v1/task-preparations/{token}", { params: { path: { token: "old-token" } } });
+		await act(async () => { await task.launch("Fix another issue"); });
+		expect(h.post).toHaveBeenLastCalledWith("/api/v1/orchestrators/delegate", expect.objectContaining({ body: expect.objectContaining({ baseBranch: "topic", taskPreparation: "current-token" }) }));
+	});
 	function LoadError() {
 		const task = useTaskLaunch({ projectId: "__standalone__" });
 		return <p>{task.remoteLoadError ?? "ready"}</p>;
