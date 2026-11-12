@@ -4910,10 +4910,15 @@ func (m *Manager) workspaceProjectRestoreRowsFromMarkers(ctx context.Context, pr
 	}
 	rootPath := rec.Metadata.WorkspacePath
 	rootBranch := rec.Metadata.Branch
+	// The recorded row is the authority for the root snapshot: session metadata is
+	// empty for rows written before the column existed, and the row is what
+	// teardown validated at creation time.
+	rootWorktreeRoot := rec.Metadata.WorktreeRoot
 	var rootBaseSHA, rootBaseRef string
 	if len(rows) == 1 && (rows[0].RepoName == "" || rows[0].RepoName == domain.RootWorkspaceRepoName) {
 		rootPath = firstNonEmptyString(rows[0].WorktreePath, rootPath)
 		rootBranch = firstNonEmptyString(rows[0].Branch, rootBranch)
+		rootWorktreeRoot = firstNonEmptyString(rows[0].WorktreeRoot, rootWorktreeRoot)
 		rootBaseSHA = rows[0].BaseSHA
 		rootBaseRef = rows[0].BaseRef
 	}
@@ -4921,7 +4926,7 @@ func (m *Manager) workspaceProjectRestoreRowsFromMarkers(ctx context.Context, pr
 		RepoName:     domain.RootWorkspaceRepoName,
 		RepoPath:     project.Path,
 		Path:         rootPath,
-		WorktreeRoot: rec.Metadata.WorktreeRoot,
+		WorktreeRoot: rootWorktreeRoot,
 		Branch:       rootBranch,
 		BaseSHA:      rootBaseSHA,
 		BaseRef:      rootBaseRef,

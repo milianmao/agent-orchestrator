@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -494,5 +495,84 @@ func TestWorktreeRootCreationRollsBackOnValidationFailure(t *testing.T) {
 	}
 	if info, statErr := os.Stat(existing); statErr != nil || !info.IsDir() {
 		t.Fatalf("pre-existing root removed after success: %v", statErr)
+	}
+}
+
+// TestWorktreeRootJunctionSpellingConflicts covers M2 on Windows: a directory
+// junction needs no special privilege (unlike a symlink), and the resolver must
+// still recognise the junction and its target as one directory. Resolving the
+// child with EvalSymlinks alone fails on a junction path with "The system cannot
+// find the file specified", which previously rejected a valid new root.
+func TestWorktreeRootJunctionSpellingConflicts(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("junction spellings are a Windows filesystem feature")
+	}
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	parent := t.TempDir()
+	realRoot := filepath.Join(parent, "real-root")
+	if err := os.MkdirAll(realRoot, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	// A junction the first project owns, plus a sibling junction to the same
+	// target used as the second project's spelling.
+	firstLink := filepath.Join(parent, "first-junction")
+	if err := exec.Command("cmd", "/c", "mklink", "/J", firstLink, realRoot).Run(); err != nil {
+		t.Skipf("junctions unavailable on this host: %v", err)
+	}
+	if _, err := m.Add(ctx, project.AddInput{
+		Path:   gitRepo(t),
+		Config: &domain.ProjectConfig{WorktreeRoot: firstLink},
+	}); err != nil {
+		t.Fatalf("Add with a junction root: %v", err)
+	}
+
+	// The same directory addressed through another junction must conflict.
+	secondLink := filepath.Join(parent, "second-junction")
+	if err := exec.Command("cmd", "/c", "mklink", "/J", secondLink, realRoot).Run(); err != nil {
+		t.Skipf("junctions unavailable on this host: %v", err)
+	}
+	_, err := m.Add(ctx, project.AddInput{
+		Path:   gitRepo(t),
+		Config: &domain.ProjectConfig{WorktreeRoot: secondLink},
+	})
+	wantCode(t, err, "WORKTREE_ROOT_CONFLICT")
+}
+
+// TestSetConfigWithoutRootKeepsStoredRootUnvalidated documents M1's current
+// behaviour: a client that omits worktreeRoot inherits the stored root verbatim
+// and no filesystem check runs against it. Re-validating an inherited value on
+// every unrelated settings save would fail edits (a root on an unmounted volume
+// blocks a display-name change) without improving safety, because spawn re-checks
+// the root before creating anything.
+func TestSetConfigWithoutRootKeepsStoredRootUnvalidated(t *testing.T) {
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	repo := gitRepo(t)
+	custom := filepath.Join(t.TempDir(), "root-then-removed")
+	added, err := m.Add(ctx, project.AddInput{
+		Path:   repo,
+		Config: &domain.ProjectConfig{WorktreeRoot: custom},
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	// The root disappears; an unrelated config save from an old client still
+	// succeeds and keeps the value, and only the spawn refuses it later.
+	if err := os.RemoveAll(custom); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.SetConfig(ctx, added.ID, project.SetConfigInput{
+		Config: domain.ProjectConfig{SessionPrefix: "after-removal"},
+	}); err != nil {
+		t.Fatalf("SetConfig after the root disappeared: %v", err)
+	}
+	got, err := m.Get(ctx, added.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Project.Config == nil || got.Project.Config.WorktreeRoot != custom {
+		t.Fatalf("stored root = %+v, want %q kept", got.Project.Config, custom)
 	}
 }

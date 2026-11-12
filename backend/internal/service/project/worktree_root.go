@@ -106,10 +106,10 @@ func (m *Service) prepareWorktreeRootDirectory(root string) (physicalPath string
 		}
 		created = true
 	}
-	// Every root is returned in physical form, so two spellings of one directory
-	// (a junction or symlinked path versus its target) compare equal and cannot
-	// both pass the cross-project conflict check.
-	physical, evalErr := filepath.EvalSymlinks(root)
+	// Every root is returned in a form that lets two spellings of one directory
+	// compare equal, so a junction or symlinked path cannot pass the cross-project
+	// conflict check alongside its target.
+	physical, evalErr := physicalWorktreeRoot(root)
 	if evalErr != nil {
 		return "", created, apierr.Invalid("WORKTREE_ROOT_UNAVAILABLE", "The worktree root could not be resolved.", map[string]any{"worktreeRoot": root})
 	}
@@ -117,6 +117,25 @@ func (m *Service) prepareWorktreeRootDirectory(root string) (physicalPath string
 		return "", created, usableErr
 	}
 	return physical, created, nil
+}
+
+// physicalWorktreeRoot resolves a root to the path that identifies its directory,
+// so two spellings of one directory (a symlink or a Windows junction and its
+// target) compare equal and cannot both pass the cross-project conflict check.
+//
+// filepath.EvalSymlinks is not enough on Windows: it resolves symlinks but leaves a
+// directory JUNCTION unresolved, so the junction path and its target would compare
+// different even though they address one directory. resolveDirectoryIdentity closes
+// that gap per platform. A path that cannot be resolved is reported as an error
+// rather than returned unchanged, because an unresolved spelling is exactly what
+// would let a duplicate root through.
+func physicalWorktreeRoot(root string) (string, error) {
+	clean := filepath.Clean(root)
+	resolved, err := resolveDirectoryIdentity(clean)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(resolved), nil
 }
 
 // requireWorktreeRootUsable reports whether AO can write beneath root. An

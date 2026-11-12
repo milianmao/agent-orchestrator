@@ -117,3 +117,53 @@ func TestWorkspaceProjectCreatesUnderCustomRoot(t *testing.T) {
 		t.Fatalf("workspace-project create root = %q, want %q", got, customRoot)
 	}
 }
+
+// TestWorkspaceRestoreRootRowUsesRecordedSnapshot covers restore from markers: the
+// session metadata may carry no root (rows written before the column existed),
+// so the recorded root row is what supplies the snapshot.
+func TestWorkspaceRestoreRootRowUsesRecordedSnapshot(t *testing.T) {
+	f := newMultiRepoFixture(t)
+	ctx := context.Background()
+	const customRoot = "/recorded/workspace root"
+
+	project := f.projectA
+	project.Kind = domain.ProjectKindWorkspace
+	if err := f.store.UpsertProject(ctx, project); err != nil {
+		t.Fatalf("save workspace project: %v", err)
+	}
+	f.manager.store = f.store
+
+	rec := domain.SessionRecord{
+		ID:        "ws-restore-root",
+		ProjectID: domain.ProjectID(project.ID),
+		Kind:      domain.KindOrchestrator,
+		// No WorktreeRoot: this is the pre-column shape the fix targets.
+		Metadata: domain.SessionMetadata{
+			Branch:        "ao/work",
+			WorkspacePath: customRoot + "/" + string(project.ID) + "/ws-restore-root",
+		},
+	}
+	row := domain.SessionWorktreeRecord{
+		SessionID:    rec.ID,
+		RepoName:     domain.RootWorkspaceRepoName,
+		ProjectID:    rec.ProjectID,
+		RepoPath:     project.Path,
+		Branch:       rec.Metadata.Branch,
+		WorktreePath: rec.Metadata.WorkspacePath,
+		WorktreeRoot: customRoot,
+		State:        "active",
+	}
+	infos, err := f.manager.workspaceProjectRestoreRowsFromMarkers(ctx, project, rec, []domain.SessionWorktreeRecord{row})
+	if err != nil {
+		t.Fatalf("restore rows: %v", err)
+	}
+	if len(infos) == 0 {
+		t.Fatal("no repo infos produced")
+	}
+	if infos[0].RepoName != domain.RootWorkspaceRepoName {
+		t.Fatalf("first row = %q, want the root row", infos[0].RepoName)
+	}
+	if infos[0].WorktreeRoot != customRoot {
+		t.Fatalf("root row snapshot = %q, want the recorded %q", infos[0].WorktreeRoot, customRoot)
+	}
+}
