@@ -4003,5 +4003,7 @@
 	"codexMcp.stdio": "stdio",
 	"codexMcp.http": "http",
 	"codexMcp.command": "Command",
-	"codexMcp.url": "URL"
+	"codexMcp.url": "URL",
+	"codexMcp.envRefs": "环境变量",
+	"codexMcp.headerRefs": "请求头"
 }

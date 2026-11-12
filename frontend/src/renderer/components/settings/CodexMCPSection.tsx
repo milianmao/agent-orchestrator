@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import type { components } from "../../../api/schema";
-import { apiClient, apiErrorMessage } from "../../lib/api-client";
+import { apiClient } from "../../lib/api-client";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { SettingsSection } from "./SettingsSection";
@@ -23,14 +23,14 @@ export function CodexMCPSection() {
 	const [notice, setNotice] = useState("");
 	async function refresh() {
 		const result = await apiClient.GET("/api/v1/settings/codex/mcp");
-		if (result.error) throw new Error(apiErrorMessage(result.error));
+		if (result.error) throw new Error(t("codexMcp.failed"));
 		setServers(result.data.servers);
 	}
 	useEffect(() => { void refresh().catch(() => setError(t("codexMcp.readFailed"))); }, []);
 	async function mutate(action: () => Promise<void>) {
 		setPending(true); setError(""); setNotice("");
 		try { await action(); await refresh(); setNotice(t("codexMcp.newSessionsOnly")); }
-		catch (err) { setError(err instanceof Error ? err.message : t("codexMcp.failed")); }
+		catch { setError(t("codexMcp.failed")); }
 		finally { setPending(false); }
 	}
 	function edit(server: Status) {
@@ -49,7 +49,7 @@ export function CodexMCPSection() {
 			const result = editing
 				? await apiClient.PATCH("/api/v1/settings/codex/mcp/{name}", { params: { path: { name: draft.name } }, body: patch })
 				: await apiClient.POST("/api/v1/settings/codex/mcp", { body });
-			if (result.error) throw new Error(apiErrorMessage(result.error));
+			if (result.error) throw new Error(t("codexMcp.failed"));
 			setDraft({ ...blank }); setEditing(false); setArgs("[]"); setRefs("{}");
 		});
 	}
@@ -62,14 +62,14 @@ export function CodexMCPSection() {
 			{server.startupFailure && <span role="status">{t("codexMcp.startupFailed")}</span>}
 			{server.missingReferences.length > 0 && <span role="status">{t("codexMcp.missingReferences", { names: server.missingReferences.join(", ") })}</span>}
 			<Button disabled={pending} onClick={() => edit(server)}>{t("codexMcp.edit")} {server.name}</Button>
-			<Button disabled={pending} onClick={() => void mutate(async () => { const r = await apiClient.PATCH("/api/v1/settings/codex/mcp/{name}", { params: { path: { name: server.name } }, body: { enabled: !server.enabled } }); if (r.error) throw new Error(apiErrorMessage(r.error)); })}>{server.enabled ? t("codexMcp.disable") : t("codexMcp.enable")} {server.name}</Button>
-			<Button disabled={pending} onClick={() => void mutate(async () => { const r = await apiClient.DELETE("/api/v1/settings/codex/mcp/{name}", { params: { path: { name: server.name } } }); if (r.error) throw new Error(apiErrorMessage(r.error)); })}>{t("codexMcp.delete")} {server.name}</Button>
+			<Button disabled={pending} onClick={() => void mutate(async () => { const r = await apiClient.PATCH("/api/v1/settings/codex/mcp/{name}", { params: { path: { name: server.name } }, body: { enabled: !server.enabled } }); if (r.error) throw new Error(t("codexMcp.failed")); })}>{server.enabled ? t("codexMcp.disable") : t("codexMcp.enable")} {server.name}</Button>
+			<Button disabled={pending} onClick={() => void mutate(async () => { const r = await apiClient.DELETE("/api/v1/settings/codex/mcp/{name}", { params: { path: { name: server.name } } }); if (r.error) throw new Error(t("codexMcp.failed")); })}>{t("codexMcp.delete")} {server.name}</Button>
 		</li>)}</ul>
 		<form className="grid gap-3" onSubmit={event => { event.preventDefault(); void save(); }}>
 			<label>{t("codexMcp.name")}<Input required disabled={editing || pending} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></label>
 			<label>{t("codexMcp.transport")}<select disabled={pending} value={draft.transport} onChange={e => setDraft({ ...draft, transport: e.target.value })}><option value="stdio">{t("codexMcp.stdio")}</option><option value="http">{t("codexMcp.http")}</option></select></label>
 			{draft.transport === "stdio" ? <><label>{t("codexMcp.command")}<Input required disabled={pending} value={draft.command ?? ""} onChange={e => setDraft({ ...draft, command: e.target.value })} /></label><label>{t("codexMcp.args")}<Input disabled={pending} value={args} onChange={e => setArgs(e.target.value)} /></label></> : <label>{t("codexMcp.url")}<Input required disabled={pending} value={draft.url ?? ""} onChange={e => setDraft({ ...draft, url: e.target.value })} /></label>}
-			<label>{draft.transport === "stdio" ? "Env" : "Header"} {t("codexMcp.references")}<Input disabled={pending} value={refs} onChange={e => setRefs(e.target.value)} /></label>
+			<label>{draft.transport === "stdio" ? t("codexMcp.envRefs") : t("codexMcp.headerRefs")} {t("codexMcp.references")}<Input disabled={pending} value={refs} onChange={e => setRefs(e.target.value)} /></label>
 			<label><input type="checkbox" disabled={pending} checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} />{t("codexMcp.enable")}</label>
 			<Button type="submit" disabled={pending}>{pending ? t("codexMcp.saving") : t("codexMcp.save")}</Button>
 			{editing && <Button type="button" disabled={pending} onClick={() => { setEditing(false); setDraft({ ...blank }); setArgs("[]"); setRefs("{}"); }}>{t("codexMcp.cancel")}</Button>}
