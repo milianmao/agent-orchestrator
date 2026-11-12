@@ -576,3 +576,128 @@ func TestSetConfigWithoutRootKeepsStoredRootUnvalidated(t *testing.T) {
 		t.Fatalf("stored root = %+v, want %q kept", got.Project.Config, custom)
 	}
 }
+
+// TestDefaultWorktreeRootThroughJunctionIsShared covers the case where AO_DATA_DIR
+// itself is reached through a Windows junction. Two projects must both be able to
+// use the default root (it is shared by design), and the comparison that decides
+// "this is the shared default" has to resolve the junction the same way the root
+// was resolved. Resolving only one side left the junction spelling looking like a
+// project-specific root, which then collided with the other project's.
+func TestDefaultWorktreeRootThroughJunctionIsShared(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("junctions are a Windows filesystem feature")
+	}
+	dataDirReal := t.TempDir()
+	linkParent := t.TempDir()
+	dataDirLink := filepath.Join(linkParent, "data-junction")
+	if err := exec.Command("cmd", "/c", "mklink", "/J", dataDirLink, dataDirReal).Run(); err != nil {
+		t.Skipf("junctions unavailable on this host: %v", err)
+	}
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, dataDirLink)
+	defaultRoot := filepath.Join(dataDirLink, "worktrees")
+
+	first, err := m.Add(ctx, project.AddInput{Path: gitRepo(t)})
+	if err != nil {
+		t.Fatalf("Add first project: %v", err)
+	}
+	second, err := m.Add(ctx, project.AddInput{Path: gitRepo(t)})
+	if err != nil {
+		t.Fatalf("Add second project under a junctioned data dir: %v", err)
+	}
+	for _, added := range []project.Project{first, second} {
+		if added.Config == nil || added.Config.WorktreeRoot == "" {
+			t.Fatalf("project %s has no saved root", added.ID)
+		}
+	}
+	// The default root is shared, so both projects may name it explicitly too.
+	cfg := domain.ProjectConfig{WorktreeRoot: defaultRoot}
+	if _, err := m.SetConfig(ctx, second.ID, project.SetConfigInput{Config: cfg, WorktreeRootPresent: true}); err != nil {
+		t.Fatalf("SetConfig default root through junction: %v", err)
+	}
+}
+
+// TestWorktreeRootInsideRepoThroughJunction covers a project whose own path is
+// reached through a junction: a root inside that repository must still be refused,
+// which requires the repository path and the root to be resolved the same way.
+func TestWorktreeRootInsideRepoThroughJunction(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("junctions are a Windows filesystem feature")
+	}
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	repoReal := gitRepo(t)
+	linkParent := t.TempDir()
+	repoLink := filepath.Join(linkParent, "repo-junction")
+	if err := exec.Command("cmd", "/c", "mklink", "/J", repoLink, repoReal).Run(); err != nil {
+		t.Skipf("junctions unavailable on this host: %v", err)
+	}
+
+	// Root spelled through the real path, project registered through the junction.
+	insideReal := filepath.Join(repoReal, "worktrees-root")
+	_, err := m.Add(ctx, project.AddInput{
+		Path:   repoLink,
+		Config: &domain.ProjectConfig{WorktreeRoot: insideReal},
+	})
+	wantCode(t, err, "WORKTREE_ROOT_INSIDE_REPO")
+
+	// And the mirrored spelling: root through the junction, project through the
+	// real path.
+	insideLink := filepath.Join(repoLink, "other-root")
+	_, err = m.Add(ctx, project.AddInput{
+		Path:   repoReal,
+		Config: &domain.ProjectConfig{WorktreeRoot: insideLink},
+	})
+	wantCode(t, err, "WORKTREE_ROOT_INSIDE_REPO")
+}
+
+// TestRejectedRootRollbackNeverRemovesJunctionTarget covers M3's blast radius: the
+// rollback removes only the empty directory this call created. A junction is a
+// reparse point, and removing one can reach the directory it points at, so a save
+// whose root is a junction must fail without deleting the junction's target.
+func TestRejectedRootRollbackNeverRemovesJunctionTarget(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("junctions are a Windows filesystem feature")
+	}
+	ctx := context.Background()
+	m := newManagerWithDataDir(t, t.TempDir())
+	repo := gitRepo(t)
+
+	target := t.TempDir()
+	if err := os.WriteFile(filepath.Join(target, "keep.txt"), []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "root-junction")
+	if err := exec.Command("cmd", "/c", "mklink", "/J", link, target).Run(); err != nil {
+		t.Skipf("junctions unavailable on this host: %v", err)
+	}
+
+	// A rejected save whose root lies inside the project repository: the folder is
+	// created first, then the inside-repo rule rejects it, and the rollback must
+	// remove only that empty directory -- never the unrelated junction target.
+	insideRepo := filepath.Join(target, "nested")
+	if err := os.MkdirAll(insideRepo, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	repoLink := filepath.Join(t.TempDir(), "repo-junction")
+	if err := exec.Command("cmd", "/c", "mklink", "/J", repoLink, repo).Run(); err != nil {
+		t.Skipf("junctions unavailable on this host: %v", err)
+	}
+	_, err := m.Add(ctx, project.AddInput{
+		Path:   repoLink,
+		Config: &domain.ProjectConfig{WorktreeRoot: filepath.Join(repo, "created-then-rejected")},
+	})
+	wantCode(t, err, "WORKTREE_ROOT_INSIDE_REPO")
+	if _, statErr := os.Lstat(filepath.Join(repo, "created-then-rejected")); !os.IsNotExist(statErr) {
+		t.Fatalf("created root survived rejection: %v", statErr)
+	}
+	if _, statErr := os.Lstat(link); statErr != nil {
+		t.Fatalf("junction removed by a rejected save: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(target, "keep.txt")); statErr != nil {
+		t.Fatalf("junction target contents removed: %v", statErr)
+	}
+	if info, statErr := os.Stat(insideRepo); statErr != nil || !info.IsDir() {
+		t.Fatalf("pre-existing directory removed: %v", statErr)
+	}
+}

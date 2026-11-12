@@ -72,6 +72,10 @@ type UpdateSettingsInput struct {
 	// worktreeRoot key. JSON cannot otherwise tell "leave it alone" from "clear
 	// it": both decode to the empty string. A client that omits the key (any
 	// build older than the field) keeps the saved root instead of erasing it.
+	//
+	// The key is compared as a MAP MEMBER, so "" clears the root. A whole-config
+	// replacement (`ao project set-config --clear`, or --config-json "{}") is
+	// expressed by the CLI sending the key explicitly; see buildProjectConfig.
 	WorktreeRootPresent bool `json:"-"`
 }
 

@@ -1053,11 +1053,11 @@ func normalizeGitReportedPath(base, reported string) string {
 }
 
 func comparablePath(path string) string {
-	clean := filepath.Clean(path)
-	if resolved, err := filepath.EvalSymlinks(clean); err == nil {
-		clean = resolved
+	physical, err := physicalPathIfExists(path)
+	if err != nil {
+		return filepath.Clean(path)
 	}
-	return filepath.Clean(clean)
+	return filepath.Clean(physical)
 }
 
 func samePath(a, b string) bool {

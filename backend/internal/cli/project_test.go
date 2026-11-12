@@ -802,3 +802,61 @@ func TestProjectSetConfigSendsWorktreeRootWhenChanged(t *testing.T) {
 		t.Fatalf("--config-json worktreeRoot = %q, want /json/root-2", got)
 	}
 }
+
+// TestProjectSetConfigFullReplaceClearsWorktreeRoot covers the replacement
+// semantics: --clear and --config-json are whole-config replacements, so a saved
+// worktreeRoot the replacement does not name must be cleared rather than silently
+// preserved by the daemon's "absent means keep" rule.
+func TestProjectSetConfigFullReplaceClearsWorktreeRoot(t *testing.T) {
+	const withRoot = `{"sessionPrefix":"p","worktreeRoot":"/srv/roots/demo","agentConfig":{"model":"m1"}}`
+
+	for _, tt := range []struct {
+		name string
+		args []string
+	}{
+		{name: "--clear", args: []string{"--clear"}},
+		{name: "--config-json {}", args: []string{"--config-json", "{}"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := setConfigEnv(t)
+			srv, capture := projectConfigServer(t, `{"status":"ok","project":{"id":"demo","config":`+withRoot+`}}`)
+			writeRunFileFor(t, cfg, srv)
+			args := append([]string{"project", "set-config", "demo"}, tt.args...)
+			if _, errOut, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, args...); err != nil {
+				t.Fatalf("set-config: %v\nstderr=%s", err, errOut)
+			}
+			var body struct {
+				Config map[string]json.RawMessage `json:"config"`
+			}
+			if err := json.Unmarshal(capture.putBody, &body); err != nil {
+				t.Fatalf("decode PUT body: %v", err)
+			}
+			raw, present := body.Config["worktreeRoot"]
+			if !present {
+				t.Fatalf("PUT body omits worktreeRoot, so the daemon would keep the saved root: %s", capture.putBody)
+			}
+			var root string
+			if err := json.Unmarshal(raw, &root); err != nil {
+				t.Fatalf("decode worktreeRoot: %v", err)
+			}
+			if root != "" {
+				t.Fatalf("worktreeRoot = %q, want an explicit clear", root)
+			}
+		})
+	}
+}
+
+// TestProjectSetConfigFieldFlagsKeepWorktreeRoot covers the other half: field
+// flags merge into the saved config, so a root they never mention survives.
+func TestProjectSetConfigFieldFlagsKeepWorktreeRoot(t *testing.T) {
+	const withRoot = `{"sessionPrefix":"p","worktreeRoot":"/srv/roots/demo"}`
+	cfg := setConfigEnv(t)
+	srv, capture := projectConfigServer(t, `{"status":"ok","project":{"id":"demo","config":`+withRoot+`}}`)
+	writeRunFileFor(t, cfg, srv)
+	if _, errOut, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "project", "set-config", "demo", "--session-prefix", "next"); err != nil {
+		t.Fatalf("set-config: %v\nstderr=%s", err, errOut)
+	}
+	if got := putConfig(t, capture).WorktreeRoot; got != "/srv/roots/demo" {
+		t.Fatalf("worktreeRoot = %q, want /srv/roots/demo preserved", got)
+	}
+}

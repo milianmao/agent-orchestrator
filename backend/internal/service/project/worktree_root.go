@@ -69,7 +69,7 @@ func (m *Service) validateWorktreeRootSelection(ctx context.Context, projectID d
 	// never removed, so a failed save cannot destroy a user's directory.
 	reject := func(err error) (string, error) {
 		if created {
-			_ = os.Remove(clean)
+			removeCreatedWorktreeRoot(clean)
 		}
 		return "", err
 	}
@@ -80,6 +80,24 @@ func (m *Service) validateWorktreeRootSelection(ctx context.Context, projectID d
 		return reject(err)
 	}
 	return physical, nil
+}
+
+// removeCreatedWorktreeRoot removes a directory this call created and nothing
+// else. It re-checks that the entry is still the empty plain directory Mkdir made:
+// a junction or symlink that appeared there in the meantime (created=true applies
+// only to a path that did not exist a moment ago, but the check costs nothing)
+// would make os.Remove delete the link target's contents on some platforms, so a
+// reparse point is never removed here.
+func removeCreatedWorktreeRoot(path string) {
+	info, err := os.Lstat(path)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil || len(entries) != 0 {
+		return
+	}
+	_ = os.Remove(path)
 }
 
 // prepareWorktreeRootDirectory makes sure root exists as a writable directory,
@@ -309,20 +327,27 @@ func pathWithin(parent, target string) (bool, error) {
 	return true, nil
 }
 
-// physicalPathIfExists resolves path's symlinks when it exists and otherwise
-// returns its cleaned absolute form, so a not-yet-created root still compares
-// predictably against existing ones.
+// physicalPathIfExists resolves an existing path to the directory identity that
+// comparisons use, and returns a cleaned absolute path when it does not exist yet.
+//
+// It MUST use the same resolution as physicalWorktreeRoot: comparing a root
+// resolved through a Windows junction handle against a path resolved through
+// filepath.EvalSymlinks (which leaves junctions unresolved) makes one directory
+// look like two, so a duplicate or nested root could pass the conflict check.
 func physicalPathIfExists(path string) (string, error) {
 	abs, err := filepath.Abs(filepath.Clean(path))
 	if err != nil {
 		return "", err
 	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+	if _, statErr := os.Stat(abs); statErr != nil {
+		if errors.Is(statErr, fs.ErrNotExist) {
 			return abs, nil
 		}
+		return "", statErr
+	}
+	resolved, err := resolveDirectoryIdentity(abs)
+	if err != nil {
 		return "", err
 	}
-	return resolved, nil
+	return filepath.Clean(resolved), nil
 }
