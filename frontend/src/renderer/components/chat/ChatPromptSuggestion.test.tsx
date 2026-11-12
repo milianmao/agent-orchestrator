@@ -2,6 +2,7 @@ import { $getRoot, type LexicalEditor } from "lexical";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { appI18n } from "../../i18n";
 import { readChatSessionDraft, writeChatComposerText } from "../../lib/chat-drafts";
 import { lexicalEditorText, typeAndPressInLexicalEditor, typeInLexicalEditor } from "../../test/lexical";
 import { TooltipProvider } from "../ui/tooltip";
@@ -213,7 +214,7 @@ describe("draft optimization", () => {
 	it("offers the polish as a proposal without touching the draft", async () => {
 		const { field, onOptimizeDraft, onSend } = renderOptimizer();
 		await typeInLexicalEditor(field, "fix login bug");
-		await userEvent.click(screen.getByRole("button", { name: "Polish this draft" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.polishAction") }));
 		await waitFor(() => expect(screen.getByTestId("optimized-draft").textContent).toBe(polished));
 		expect(onOptimizeDraft).toHaveBeenCalledWith("fix login bug");
 		// The user's words are still the draft: an offer, not an edit.
@@ -224,9 +225,9 @@ describe("draft optimization", () => {
 	it("replaces the draft only after the proposal is accepted", async () => {
 		const { field } = renderOptimizer();
 		await typeInLexicalEditor(field, "fix login bug");
-		await userEvent.click(screen.getByRole("button", { name: "Polish this draft" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.polishAction") }));
 		await waitFor(() => expect(screen.getByTestId("optimized-draft")).toBeInTheDocument());
-		await userEvent.click(screen.getByRole("button", { name: "Use this draft" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.useDraft") }));
 		expect(lexicalEditorText(field)).toBe(polished);
 		expect(screen.queryByTestId("optimized-draft")).not.toBeInTheDocument();
 	});
@@ -234,13 +235,13 @@ describe("draft optimization", () => {
 	it("accepts the proposal with Tab and cancels it with Escape", async () => {
 		const { field } = renderOptimizer();
 		await typeInLexicalEditor(field, "fix login bug");
-		await userEvent.click(screen.getByRole("button", { name: "Polish this draft" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.polishAction") }));
 		await waitFor(() => expect(screen.getByTestId("optimized-draft")).toBeInTheDocument());
 		await userEvent.keyboard("{Tab}");
 		expect(lexicalEditorText(field)).toBe(polished);
 
 		await typeInLexicalEditor(field, "!");
-		await userEvent.click(screen.getByRole("button", { name: "Polish this draft" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.polishAction") }));
 		await waitFor(() => expect(screen.getByTestId("optimized-draft")).toBeInTheDocument());
 		fireEvent.keyDown(field, { key: "Escape" });
 		expect(screen.queryByTestId("optimized-draft")).not.toBeInTheDocument();
@@ -250,7 +251,7 @@ describe("draft optimization", () => {
 	it("drops the proposal when the draft is edited, so Tab cannot replace newer words", async () => {
 		const { field } = renderOptimizer();
 		await typeInLexicalEditor(field, "fix login bug");
-		await userEvent.click(screen.getByRole("button", { name: "Polish this draft" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.polishAction") }));
 		await waitFor(() => expect(screen.getByTestId("optimized-draft")).toBeInTheDocument());
 		await typeInLexicalEditor(field, " now");
 		expect(screen.queryByTestId("optimized-draft")).not.toBeInTheDocument();
@@ -266,7 +267,7 @@ describe("draft optimization", () => {
 		);
 		const field = screen.getByRole("combobox");
 		await typeInLexicalEditor(field, "fix login bug");
-		await userEvent.click(screen.getByRole("button", { name: "Polish this draft" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.polishAction") }));
 		await waitFor(() => expect(onOptimizeDraft).toHaveBeenCalled());
 		expect(lexicalEditorText(field)).toBe("fix login bug");
 		expect(screen.getByRole("status")).toHaveTextContent(/Your draft is unchanged/);
@@ -276,10 +277,10 @@ describe("draft optimization", () => {
 		// An empty composer advertises the next-message action, which is what the
 		// label says; the disable rule is the same for both actions.
 		const pending = renderOptimizer({ optimizing: true });
-		expect(screen.getByRole("button", { name: "Suggest the next message" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.suggestAction") })).toBeDisabled();
 		pending.unmount();
 		renderOptimizer({ disabled: true });
-		expect(screen.getByRole("button", { name: "Suggest the next message" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.suggestAction") })).toBeDisabled();
 	});
 
 	it("drops an in-flight polish when the session switches under it", async () => {
@@ -296,7 +297,7 @@ describe("draft optimization", () => {
 		);
 		const field = screen.getByRole("combobox");
 		await typeInLexicalEditor(field, "fix login bug");
-		await userEvent.click(screen.getByRole("button", { name: "Polish this draft" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.polishAction") }));
 		expect(onOptimizeDraft).toHaveBeenCalledWith("fix login bug");
 
 		view.rerender(
@@ -317,7 +318,7 @@ describe("draft optimization", () => {
 			{ wrapper: TooltipProvider },
 		);
 		const field = screen.getByRole("combobox");
-		await userEvent.click(screen.getByRole("button", { name: "Suggest the next message" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.promptSuggestion.suggestAction") }));
 		expect(onRefreshPromptSuggestion).toHaveBeenCalledOnce();
 		expect(onOptimizeDraft).not.toHaveBeenCalled();
 		expect(lexicalEditorText(field)).toBe("");
@@ -328,21 +329,21 @@ describe("slash command catalog states", () => {
 	it("reports an agent that really has no commands", async () => {
 		const { field } = renderComposer({ skills: [], skillsLoaded: true });
 		await typeInLexicalEditor(field, "/");
-		expect(await screen.findByTestId("slash-catalog-status")).toHaveTextContent("This agent reported no slash commands.");
+		expect(await screen.findByTestId("slash-catalog-status")).toHaveTextContent(appI18n.t("chat.slashCatalog.empty"));
 	});
 
 	it("says it is still loading rather than claiming there are none", async () => {
 		const { field } = renderComposer({ skills: [], skillsLoaded: false });
 		await typeInLexicalEditor(field, "/");
-		expect(await screen.findByTestId("slash-catalog-status")).toHaveTextContent("Loading this agent’s commands…");
+		expect(await screen.findByTestId("slash-catalog-status")).toHaveTextContent(appI18n.t("chat.slashCatalog.loading"));
 	});
 
 	it("shows a failure with a retry instead of an empty catalog", async () => {
 		const onRetrySkills = vi.fn();
 		const { field } = renderComposer({ skills: [], skillsLoaded: true, skillsError: "controller not ready", onRetrySkills });
 		await typeInLexicalEditor(field, "/");
-		expect(await screen.findByTestId("slash-catalog-status")).toHaveTextContent("Couldn’t load this agent’s commands: controller not ready");
-		await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(await screen.findByTestId("slash-catalog-status")).toHaveTextContent(appI18n.t("chat.slashCatalog.errorDetail", { message: "controller not ready" }));
+		await userEvent.click(screen.getByRole("button", { name: appI18n.t("chat.slashCatalog.retry") }));
 		expect(onRetrySkills).toHaveBeenCalledOnce();
 	});
 

@@ -48,7 +48,17 @@ func (c *ConversationsController) promptSuggestion(w http.ResponseWriter, r *htt
 	}
 	var prompt string
 	var err error
-	if draftSvc, ok := c.Svc.(draftPromptSuggestionService); ok && strings.TrimSpace(req.Draft) != "" {
+	if strings.TrimSpace(req.Draft) != "" {
+		// A draft can only be polished by a service that accepts one. Falling back
+		// to PromptSuggestion here would answer with a next-message suggestion the
+		// caller never asked for, about text it never sent: a wrong answer is worse
+		// than a clear refusal, so an unsupported draft is reported, not degraded.
+		draftSvc, ok := c.Svc.(draftPromptSuggestionService)
+		if !ok {
+			envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "CHAT_PROMPT_DRAFT_UNSUPPORTED",
+				"This daemon cannot polish a draft; retry with an empty draft to get a next-message suggestion", nil)
+			return
+		}
 		prompt, err = draftSvc.PromptDraftSuggestion(r.Context(), sessionID(r), req.TurnID, req.Draft)
 	} else {
 		prompt, err = svc.PromptSuggestion(r.Context(), sessionID(r), req.TurnID)

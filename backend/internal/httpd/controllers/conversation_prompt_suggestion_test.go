@@ -167,6 +167,30 @@ func TestPromptSuggestionRoutePolishesANonemptyDraftAndSuggestsForABlankOne(t *t
 	}
 }
 
+func TestPromptSuggestionRouteRefusesADraftItCannotPolish(t *testing.T) {
+	// A service that only predicts the next message has no way to answer a
+	// polish request. Answering with a next-message suggestion would return text
+	// unrelated to the draft the user sent, so the route must refuse instead.
+	for _, body := range []string{
+		`{"turnId":"turn-7","draft":"fix the login bug"}`,
+		`{"turnId":"turn-7","draft":"x"}`,
+	} {
+		svc := &promptSuggestionStub{fakeChatService: &fakeChatService{}, prompt: "Run the auth tests next."}
+		srv := promptSuggestionServer(t, svc)
+		response, status, headers := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/ao-1/conversation/prompt-suggestion", body)
+		assertJSON(t, headers)
+		if status != http.StatusNotImplemented || svc.called {
+			t.Fatalf("body %q: status=%d providerCalled=%v response=%s", body, status, svc.called, response)
+		}
+		if !strings.Contains(string(response), `"code":"CHAT_PROMPT_DRAFT_UNSUPPORTED"`) {
+			t.Fatalf("body %q: missing unsupported-draft code: %s", body, response)
+		}
+		if strings.Contains(string(response), "Run the auth tests next.") {
+			t.Fatalf("body %q: fell back to a next-message suggestion: %s", body, response)
+		}
+	}
+}
+
 func TestPromptSuggestionRouteRejectsAnOversizedDraftBeforeProviderCall(t *testing.T) {
 	for _, tt := range []struct {
 		name  string

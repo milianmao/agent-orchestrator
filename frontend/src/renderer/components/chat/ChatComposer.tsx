@@ -51,6 +51,7 @@ import {
 	type Ref,
 } from "react";
 import { ArrowUp, CornerUpRight, Loader2, Paperclip, Play, Plus, Square, WandSparkles, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { OptionMenu, OptionMenuContent, OptionMenuLabel, OptionMenuTrigger } from "../ui/option-menu";
 import { ComposerMenuRow } from "./TurnSettingsBar";
 import { Button } from "../ui/button";
@@ -425,6 +426,7 @@ export const ChatComposer = memo(function ChatComposer({
 	acceptedClientMessageIds?: ReadonlySet<string>;
 }) {
 	const translateDraft = useChatDraftTranslation();
+	const { t } = useTranslation();
 	const draftScope = useMemo<ChatDraftScope | undefined>(
 		() =>
 			draftSessionId
@@ -2047,14 +2049,16 @@ export const ChatComposer = memo(function ChatComposer({
 					>
 						<span className="min-w-0 flex-1 leading-snug">
 							{slashStatus === "loading"
-								? "Loading this agent’s commands…"
+								? t("chat.slashCatalog.loading")
 								: slashStatus === "empty"
-									? "This agent reported no slash commands."
-									: <>Couldn’t load this agent’s commands{skillsError ? `: ${skillsError}` : "."}</>}
+									? t("chat.slashCatalog.empty")
+									: skillsError
+										? t("chat.slashCatalog.errorDetail", { message: skillsError })
+										: t("chat.slashCatalog.error")}
 						</span>
 						{slashStatus === "error" && onRetrySkills ? (
 							<Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={onRetrySkills}>
-								Retry
+								{t("chat.slashCatalog.retry")}
 							</Button>
 						) : null}
 					</div>
@@ -2189,21 +2193,21 @@ export const ChatComposer = memo(function ChatComposer({
 				{optimizeProposal ? (
 					<div
 						role="group"
-						aria-label="Polished draft"
+						aria-label={t("chat.promptSuggestion.polishedDraftLabel")}
 						className="mx-1.5 rounded-md border border-border/60 bg-interactive-hover/40 p-2 text-xs"
 					>
-						<p className="mb-1 text-[11px] font-medium text-muted-foreground">Polished draft</p>
+						<p className="mb-1 text-[11px] font-medium text-muted-foreground">{t("chat.promptSuggestion.polishedDraftLabel")}</p>
 						<p className="max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-foreground" data-testid="optimized-draft">
 							{optimizeProposal.text}
 						</p>
 						<div className="mt-1.5 flex items-center gap-1.5">
 							<Button type="button" size="sm" variant="secondary" onClick={acceptOptimizeProposal}>
-								Use this draft
+								{t("chat.promptSuggestion.useDraft")}
 							</Button>
 							<Button type="button" size="sm" variant="ghost" onClick={dismissOptimizeProposal}>
-								Keep mine
+								{t("chat.promptSuggestion.keepMine")}
 							</Button>
-							<span className="ml-auto text-[11px] text-muted-foreground">Tab to accept · Esc to dismiss</span>
+							<span className="ml-auto text-[11px] text-muted-foreground">{t("chat.promptSuggestion.acceptHint")}</span>
 						</div>
 					</div>
 				) : null}
@@ -2241,12 +2245,12 @@ export const ChatComposer = memo(function ChatComposer({
 				{optimizeFailure ? (
 					<p role="status" className="px-1.5 text-xs leading-snug text-warning">
 						{optimizeFailure === "busy"
-							? "The agent is busy; try polishing again in a moment."
+							? t("chat.promptSuggestion.failure.busy")
 							: optimizeFailure === "stale"
-								? "The conversation moved on, so that polish was discarded. Your draft is unchanged."
+								? t("chat.promptSuggestion.failure.stale")
 								: optimizeFailure === "too-long"
-									? "This draft is too long to polish. Your draft is unchanged."
-									: "That polish didn’t come back. Your draft is unchanged; try again."}
+									? t("chat.promptSuggestion.failure.tooLong")
+									: t("chat.promptSuggestion.failure.unavailable")}
 					</p>
 				) : null}
 				{attachmentError ? (
@@ -2367,7 +2371,7 @@ export const ChatComposer = memo(function ChatComposer({
 											size="icon-sm"
 											disabled={!canOptimize}
 											onClick={() => void runOptimize()}
-											aria-label={hasText ? "Polish this draft" : "Suggest the next message"}
+											aria-label={hasText ? t("chat.promptSuggestion.polishAction") : t("chat.promptSuggestion.suggestAction")}
 											aria-busy={optimizing || undefined}
 											className="size-7 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-interactive-active! hover:text-foreground"
 										>
@@ -2381,10 +2385,10 @@ export const ChatComposer = memo(function ChatComposer({
 								</TooltipTrigger>
 								<TooltipContent side="bottom">
 									{optimizing
-										? "Polishing your draft…"
+										? t("chat.promptSuggestion.polishing")
 										: hasText
-											? "Polish this draft"
-											: "Suggest the next message"}
+											? t("chat.promptSuggestion.polishAction")
+											: t("chat.promptSuggestion.suggestAction")}
 								</TooltipContent>
 							</Tooltip>
 						) : null}
