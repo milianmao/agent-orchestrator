@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { projectBranchesQueryKey } from "./settings/DefaultBranchCombobox";
 import {
 	TaskComposerView,
 	type TaskComposerAgentControl,
@@ -73,6 +74,7 @@ type AgentModelOption = components["schemas"]["AgentModelInfo"];
 const NO_MODELS: AgentModelOption[] = [];
 
 type CreateTaskInput = {
+	baseBranch?: string;
 	clientRequestId?: string;
 	projectId: string;
 	brief: string;
@@ -161,9 +163,10 @@ export type LaunchReplay = {
  * with, and the create call for local, remote, cloud, and standalone targets.
  * The new chat page and TaskComposer render it.
  */
-export function useTaskLaunch({ projectId, hostId }: {
+export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 	projectId?: string;
 	hostId?: string;
+	chooseTaskBase?: boolean;
 }) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
@@ -192,6 +195,7 @@ export function useTaskLaunch({ projectId, hostId }: {
 	}, [projectId, hostId]);
 	const [fallbackAction, setFallbackAction] = useState<FallbackAction>();
 	const taskPreparationRef = useRef("");
+	const preparedBaseBranchRef = useRef("");
 	// The preparation a send in flight will claim. Leaving the page or project does not
 	// cancel it; the send does, once answered.
 	const launchingPreparationRef = useRef("");
@@ -289,6 +293,7 @@ export function useTaskLaunch({ projectId, hostId }: {
 						clientRequestId: input.clientRequestId,
 						projectId: input.projectId,
 						brief: input.brief,
+						baseBranch: input.baseBranch,
 						...(input.branch ? { branch: input.branch } : {}),
 						agent: input.agent,
 						...(input.model ? { model: input.model } : {}),
@@ -382,8 +387,23 @@ export function useTaskLaunch({ projectId, hostId }: {
 			return data.project as Project;
 		},
 	});
+	const baseSelectable = chooseTaskBase && Boolean(projectQuery.data) && !isCloudProject && !isStandalone && projectQuery.data?.kind !== "scratch" && projectQuery.data?.kind !== "workspace";
+	const [baseChoice, setBaseChoice] = useState<{ project: string; value: string }>();
+	const branchesQuery = useQuery({
+		queryKey: projectBranchesQueryKey(projectId ?? "", hostId),
+		enabled: baseSelectable,
+		retry: false,
+		queryFn: async ({ signal }) => {
+			const { data, error } = await (hostId ? clientForHost(hostId) : apiClient).GET("/api/v1/projects/{id}/branches", { params: { path: { id: projectId ?? "" } }, signal });
+			if (error) throw new Error(apiErrorMessage(error));
+			return data;
+		},
+	});
+	const baseScope = `${hostId ?? "local"}:${projectId ?? ""}`;
+	const baseBranch = baseSelectable ? (baseChoice && baseChoice.project === baseScope ? baseChoice.value : branchesQuery.data?.default ?? "") : "";
 	useEffect(() => {
 		const id = projectQuery.data?.id;
+		if (baseSelectable && !baseBranch) return;
 		if (!id) return;
 		let client;
 		try {
@@ -394,8 +414,10 @@ export function useTaskLaunch({ projectId, hostId }: {
 		let disposed = false;
 		taskPreparationRef.current = "";
 		setPreparedSessionId("");
+		preparedBaseBranchRef.current = "";
 		void client.POST("/api/v1/projects/{id}/tasks/prepare", {
 			params: { path: { id } },
+			body: { baseBranch },
 		}).then(
 			({ data }) => {
 				const token = data?.taskPreparation ?? "";
@@ -405,6 +427,7 @@ export function useTaskLaunch({ projectId, hostId }: {
 					return;
 				}
 				taskPreparationRef.current = token;
+				preparedBaseBranchRef.current = baseBranch;
 				setPreparedSessionId(token);
 			},
 			() => undefined,
@@ -416,7 +439,7 @@ export function useTaskLaunch({ projectId, hostId }: {
 			setPreparedSessionId("");
 			if (token !== launchingPreparationRef.current) cancelTaskPreparation(token, hostId);
 		};
-	}, [hostId, projectQuery.data?.id]);
+	}, [hostId, projectQuery.data?.id, baseBranch, baseSelectable]);
 	const agentsQuery = useAgentReadinessQuery(true, hostId);
 	const { settings, error: settingsError } = useSettings(hostId);
 	// The composer preselects the agent and model a spawn would actually use
@@ -904,13 +927,17 @@ export function useTaskLaunch({ projectId, hostId }: {
 	// Rejects with the create error after recording it (and any fallback) here.
 	const launch = async (brief: string, { interfaceMode, approvalMode: requestedApproval, clientRequestId, replay, attachments: files }: TaskLaunchOptions = {}): Promise<string> => {
 		if (!projectId || !canSubmit || isSubmitting) throw new Error(remoteLoadError ?? t("newTask.unableToStart"));
+		if (baseSelectable && !baseBranch) {
+			setError(t("newTask.branchUnresolved"));
+			throw new Error(t("newTask.branchUnresolved"));
+		}
 
 		setIsSubmitting(true);
 		setError(undefined);
 		setStatus(undefined);
 		setErrorAction(undefined);
 		setFallbackAction(undefined);
-		const heldPreparation = taskPreparationRef.current;
+		const heldPreparation = preparedBaseBranchRef.current === baseBranch ? taskPreparationRef.current : "";
 		launchingPreparationRef.current = heldPreparation;
 		let submittedPreparation = heldPreparation;
 		try {
@@ -926,9 +953,10 @@ export function useTaskLaunch({ projectId, hostId }: {
 			}
 			const attachmentPayloads = files ?? await toSettledPayload();
 			// One that resolved while the checks above ran is claimed too.
-			submittedPreparation = heldPreparation || taskPreparationRef.current;
+			submittedPreparation = heldPreparation || (preparedBaseBranchRef.current === baseBranch ? taskPreparationRef.current : "");
 			launchingPreparationRef.current = submittedPreparation;
 			const request: CreateTaskInput = {
+				baseBranch: baseBranch || undefined,
 				projectId,
 				brief,
 				...(branchOverride && !isCloudProject && !isStandalone ? { branch: branchOverride } : {}),
@@ -1160,6 +1188,10 @@ export function useTaskLaunch({ projectId, hostId }: {
 	};
 
 	return {
+		baseBranch,
+		baseSelectable,
+		branchesQuery,
+		setBaseBranch: (value: string) => setBaseChoice({ project: baseScope, value }),
 		launch,
 		launchFallback,
 		// What a plain send would request right now, to save alongside a send.

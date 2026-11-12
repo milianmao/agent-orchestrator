@@ -37,6 +37,8 @@ import (
 // Sentinel errors returned by the Session Manager; callers match them with
 // errors.Is.
 var (
+	ErrTaskBaseNotFound              = errors.New("selected task base branch no longer exists")
+	ErrTaskBaseUnsupported           = errors.New("task base branch selection is unsupported")
 	ErrNotFound                      = errors.New("session: not found")
 	ErrSemanticAcceptanceUnsupported = errors.New("session: semantic message acceptance unsupported")
 	ErrNotRestorable                 = errors.New("session: not restorable (not terminal)")
@@ -1168,7 +1170,11 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 
 	var prep *taskPreparation
 	if cfg.AutomationRunID == nil && cfg.Branch == "" {
-		prep = m.claimTaskPreparation(cfg.TaskPreparation, cfg.ProjectID)
+		prep = m.claimTaskPreparation(cfg.TaskPreparation, cfg.ProjectID, cfg.BaseBranch)
+	}
+	// 显式选基的缓存未命中必须同步验证并创建工作区，不能返回后才发现 seed 已失效。
+	if cfg.BaseBranch != "" && prep == nil {
+		asyncChat = false
 	}
 	var rec domain.SessionRecord
 	if prep != nil {
@@ -1394,7 +1400,10 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		}
 	}
 	if ws.Path == "" {
-		baseRefs := m.refreshDefaultBranchesBestEffort(ctx, project)
+		var baseRefs map[string]string
+		if cfg.BaseBranch == "" {
+			baseRefs = m.refreshDefaultBranchesBestEffort(ctx, project)
+		}
 		if len(cfg.Repos) > 0 {
 			var repoInfos []ports.WorkspaceRepoInfo
 			ws, repoInfos, err = m.createMultiRepoSessionWorkspace(ctx, project, cfg, id, branch, baseRefs)
@@ -2161,6 +2170,9 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 	if cfg.ProjectID == "" {
 		projectKind = domain.ProjectKindScratch
 	}
+	if cfg.BaseBranch != "" && projectKind != domain.ProjectKindSingleRepo {
+		return ports.WorkspaceInfo{}, nil, ErrTaskBaseUnsupported
+	}
 	if projectKind != domain.ProjectKindWorkspace {
 		baseBranch := project.Config.WorktreeBaseBranch()
 		if projectKind == domain.ProjectKindScratch {
@@ -2178,6 +2190,16 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 			BaseBranch:              baseBranch,
 			BaseRef:                 baseRefs[filepath.Clean(project.Path)],
 			WorktreeRoot:            m.createWorktreeRoot(project),
+		}
+		if cfg.BaseBranch != "" {
+			// 固定显式选基的提交，避免适配器默认分支回退或任务远端分支覆盖 seed。
+			out, err := aoprocess.CommandContext(ctx, "git", "-C", project.Path, "rev-parse", "--verify", "--end-of-options", cfg.BaseBranch+"^{commit}").Output()
+			if err != nil {
+				return ports.WorkspaceInfo{}, nil, fmt.Errorf("%w: %v", ErrTaskBaseNotFound, err)
+			}
+			workspaceCfg.BaseBranch = cfg.BaseBranch
+			workspaceCfg.BaseRef = cfg.BaseBranch
+			workspaceCfg.BaseSHA = strings.TrimSpace(string(out))
 		}
 		ws, err := m.workspace.Create(ctx, workspaceCfg)
 		if errors.Is(err, ports.ErrWorkspaceBranchCheckedOutElsewhere) && cfg.Kind == domain.KindOrchestrator && cfg.Branch == "" {

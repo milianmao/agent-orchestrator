@@ -501,7 +501,7 @@ func (f *fakeSessionService) DelegateTask(_ context.Context, in sessionsvc.Deleg
 	return sessionsvc.DelegateTaskOutcome{WorkerID: "ao-worker", OrchestratorID: "ao-orch"}, nil
 }
 
-func (f *fakeSessionService) PrepareTask(_ context.Context, projectID domain.ProjectID) (string, error) {
+func (f *fakeSessionService) PrepareTask(_ context.Context, projectID domain.ProjectID, baseBranch ...string) (string, error) {
 	f.preparedProject = projectID
 	return "prep-token", nil
 }

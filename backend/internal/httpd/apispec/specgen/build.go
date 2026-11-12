@@ -620,6 +620,7 @@ var schemaNames = map[string]string{ //nolint:gosec // Public OpenAPI type names
 	"ControllersDelegateTaskRequest":                      "DelegateTaskRequest",
 	"ControllersDelegateTaskResponse":                     "DelegateTaskResponse",
 	"ControllersPrepareTaskResponse":                      "PrepareTaskResponse",
+	"ControllersPrepareTaskRequest":                       "PrepareTaskRequest",
 	"ControllersClaimPRResponse":                          "ClaimPRResponse",
 	"ControllersClaimPRRequest":                           "ClaimPRRequest",
 	"ControllersSessionPRFacts":                           "SessionPRFacts",
@@ -4280,6 +4281,7 @@ func sessionOperations() []operation {
 		{
 			method: http.MethodPost, path: "/api/v1/projects/{id}/tasks/prepare", id: "prepareTask", tag: "projects",
 			summary:    "Speculatively create the next task's worktree",
+			reqBody:    controllers.PrepareTaskRequest{},
 			pathParams: []any{controllers.ProjectIDParam{}},
 			resps: []respUnit{
 				{http.StatusAccepted, controllers.PrepareTaskResponse{}},

@@ -3974,7 +3974,7 @@
 	"newTask.savedEffortUnsupported": "Сохранённый уровень усилий недоступен. Выбран уровень агента по умолчанию. Проверьте выбор и запустите снова.",
 	"newTask.selectedEffortUnsupported": "Выбранный уровень усилий недоступен. Перед запуском выберите другой уровень.",
 	"newTask.agentNotInstalled": "Этот агент не установлен. Откройте настройки агентов, установите его и повторите попытку.",
-	"newTask.branchUnresolved": "Выберите базовую ветку в настройках проекта и запустите снова.",
+	"newTask.branchUnresolved": "Выберите базовую ветку для этой задачи и запустите снова.",
 	"newTask.branchInUse": "Эта ветка открыта в другом рабочем дереве. Выберите новую ветку для этой задачи.",
 	"newTask.branchInUseElsewhere": "Эта ветка открыта в другом месте. Выберите другой проект или повторите попытку позже.",
 	"newTask.openHarnessSettings": "Открыть настройки агентов",
@@ -4158,5 +4158,11 @@
 	"codexMcp.command": "Command",
 	"codexMcp.url": "URL",
 	"codexMcp.envRefs": "Environment",
-	"codexMcp.headerRefs": "Header"
+	"codexMcp.headerRefs": "Header",
+	"newTask.worktree": "Worktree",
+	"newTask.baseBranch": "Базовая ветка",
+	"newTask.chooseBaseBranch": "Выбрать базовую ветку",
+	"newTask.searchBranches": "Поиск веток",
+	"newTask.loadingBranches": "Загрузка веток…",
+	"newTask.defaultBase": "по умолчанию"
 }

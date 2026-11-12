@@ -138,6 +138,12 @@ export function SettingsOptionMenu<T extends string>({
 							aria-label={t("settings.options.searchAria", { label: ariaLabel.toLocaleLowerCase() })}
 							value={search}
 							onChange={(event) => setSearch(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "ArrowDown") {
+									event.preventDefault();
+									scrollRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])')?.focus();
+								}
+							}}
 							placeholder={searchPlaceholder ?? t("settings.options.searchPlaceholder")}
 							className="menu-search-input"
 						/>

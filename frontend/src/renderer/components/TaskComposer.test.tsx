@@ -327,7 +327,7 @@ describe("TaskComposer", () => {
 		render(<Wrap><TaskComposer projectId="proj-1" onCreated={vi.fn()} /></Wrap>);
 		await waitForTaskReady();
 		fireEvent.click(startTask());
-		expect(await screen.findByText("Choose a base branch in project settings, then start again.")).toBeInTheDocument();
+		expect(await screen.findByText("Choose a base branch for this task, then start again.")).toBeInTheDocument();
 	});
 	it("does not launch a remote project task without a ready agent", async () => {
 		h.agentCatalog = { agents: [] };
@@ -3555,7 +3555,7 @@ describe("useTaskLaunch on the new chat page", () => {
 
 	it("keeps the prepared worktree a send in flight will claim when the page goes away", async () => {
 		h.agentCatalog = { agents: [agentReadiness("claude-code", "Claude Code")] };
-		h.get.mockResolvedValue({ data: { status: "ok", project: { id: "proj-1", config: { worker: { agent: "claude-code" } } } } });
+		h.get.mockImplementation(async (path: string) => path.endsWith("/branches") ? { data: { default: "main", branches: [] } } : { data: { status: "ok", project: { id: "proj-1", config: { worker: { agent: "claude-code" } } } } });
 		h.delete.mockResolvedValue({});
 		let created!: (value: unknown) => void;
 		h.post.mockImplementation(async (path: string) => {

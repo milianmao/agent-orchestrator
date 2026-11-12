@@ -7313,6 +7313,7 @@ export interface components {
             /** @enum {string} */
             approvalMode?: "default" | "accept-edits" | "auto" | "bypass-permissions";
             attachments?: components["schemas"]["AttachmentInput"][];
+            baseBranch?: string;
             branch?: string;
             brief: string;
             clientRequestId?: string;
@@ -8088,6 +8089,9 @@ export interface components {
             baseSha?: string;
             repoKey: string;
             taskId: string;
+        };
+        PrepareTaskRequest: {
+            baseBranch?: string;
         };
         PrepareTaskResponse: {
             ok: boolean;
@@ -16915,7 +16919,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrepareTaskRequest"];
+            };
+        };
         responses: {
             /** @description Accepted */
             202: {

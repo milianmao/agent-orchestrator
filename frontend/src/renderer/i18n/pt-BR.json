@@ -3915,7 +3915,7 @@
 	"newTask.savedEffortUnsupported": "O esforço salvo não está disponível. O padrão do agente foi selecionado. Revise e inicie novamente.",
 	"newTask.selectedEffortUnsupported": "O esforço selecionado não está disponível. Escolha outro nível antes de iniciar.",
 	"newTask.agentNotInstalled": "Este agente não está instalado. Abra as configurações de agentes para instalá-lo e tente novamente.",
-	"newTask.branchUnresolved": "Escolha uma ramificação base nas configurações do projeto e inicie novamente.",
+	"newTask.branchUnresolved": "Escolha uma ramificação base para esta tarefa e inicie novamente.",
 	"newTask.branchInUse": "Essa ramificação está aberta em outra árvore de trabalho. Escolha uma nova ramificação para esta tarefa.",
 	"newTask.branchInUseElsewhere": "Essa ramificação está aberta em outro lugar. Escolha outro projeto ou tente mais tarde.",
 	"newTask.openHarnessSettings": "Abrir configurações de agentes",
@@ -4099,5 +4099,11 @@
 	"codexMcp.command": "Command",
 	"codexMcp.url": "URL",
 	"codexMcp.envRefs": "Environment",
-	"codexMcp.headerRefs": "Header"
+	"codexMcp.headerRefs": "Header",
+	"newTask.worktree": "Worktree",
+	"newTask.baseBranch": "Ramificação base",
+	"newTask.chooseBaseBranch": "Escolher ramificação base",
+	"newTask.searchBranches": "Buscar ramificações",
+	"newTask.loadingBranches": "Carregando ramificações…",
+	"newTask.defaultBase": "padrão"
 }

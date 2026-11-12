@@ -3846,7 +3846,7 @@
 	"newTask.savedEffortUnsupported": "Die gespeicherte Denkstufe ist nicht verfügbar. Der Agentenstandard wurde ausgewählt. Prüfe ihn und starte erneut.",
 	"newTask.selectedEffortUnsupported": "Die ausgewählte Denkstufe ist nicht verfügbar. Wähle vor dem Start eine andere Stufe.",
 	"newTask.agentNotInstalled": "Dieser Agent ist nicht installiert. Öffne die Agenteneinstellungen, installiere ihn und versuche es erneut.",
-	"newTask.branchUnresolved": "Wähle in den Projekteinstellungen einen Basisbranch und starte erneut.",
+	"newTask.branchUnresolved": "Wähle einen Basisbranch für diese Aufgabe und starte erneut.",
 	"newTask.branchInUse": "Dieser Branch ist in einem anderen Arbeitsverzeichnis geöffnet. Wähle für diese Aufgabe einen neuen Branch.",
 	"newTask.branchInUseElsewhere": "Dieser Branch ist anderswo geöffnet. Wähle ein anderes Projekt oder versuche es später erneut.",
 	"newTask.openHarnessSettings": "Agenteneinstellungen öffnen",
@@ -4030,5 +4030,11 @@
 	"codexMcp.command": "Command",
 	"codexMcp.url": "URL",
 	"codexMcp.envRefs": "Environment",
-	"codexMcp.headerRefs": "Header"
+	"codexMcp.headerRefs": "Header",
+	"newTask.worktree": "Worktree",
+	"newTask.baseBranch": "Basisbranch",
+	"newTask.chooseBaseBranch": "Basisbranch wählen",
+	"newTask.searchBranches": "Branches suchen",
+	"newTask.loadingBranches": "Branches werden geladen…",
+	"newTask.defaultBase": "Standard"
 }
