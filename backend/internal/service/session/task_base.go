@@ -17,7 +17,8 @@ func resolveTaskBase(ctx context.Context, project domain.ProjectRecord, requeste
 		return "", apierr.Invalid("BASE_BRANCH_UNSUPPORTED", "Base branch selection requires a Git worktree project", nil)
 	}
 	name := strings.TrimSpace(requested)
-	if name == "" || strings.HasPrefix(name, "refs/") || name == "HEAD" || name == "origin/HEAD" {
+	fullRef := strings.HasPrefix(name, "refs/heads/") || strings.HasPrefix(name, "refs/remotes/origin/")
+	if name == "" || strings.HasPrefix(name, "refs/") && !fullRef || name == "HEAD" || name == "origin/HEAD" || name == "refs/remotes/origin/HEAD" {
 		return "", apierr.Invalid("INVALID_BASE_BRANCH", "Choose a local branch or origin branch", nil)
 	}
 	if _, err := gitWorkspaceOutput(ctx, project.Path, "check-ref-format", "--branch", name); err != nil {
@@ -28,7 +29,9 @@ func resolveTaskBase(ctx context.Context, project domain.ProjectRecord, requeste
 		return "", apierr.Invalid("PROJECT_BRANCHES_UNAVAILABLE", "The project's branches could not be read", nil)
 	}
 	candidates := []string{"refs/heads/" + name, "refs/remotes/origin/" + name}
-	if strings.HasPrefix(name, "origin/") {
+	if fullRef {
+		candidates = []string{name}
+	} else if strings.HasPrefix(name, "origin/") {
 		candidates = []string{"refs/remotes/" + name}
 	}
 	for _, candidate := range candidates {

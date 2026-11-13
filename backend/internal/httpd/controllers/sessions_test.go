@@ -4674,7 +4674,7 @@ func TestSessionsAPI_DelegateClientRequestHashIgnoresPreparationButBindsTask(t *
 	}
 }
 
-func TestSessionsAPI_PreparesAndCancelsTaskWorkspace(t *testing.T) {
+func TestSessionsAPI_PreparesAndCancelsTaskWorkspaceWithEmptyBody(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
 

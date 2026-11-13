@@ -22,13 +22,13 @@ func TestTaskBaseUsesOnlyExistingBranches(t *testing.T) {
 	git("branch", "feature/local")
 	git("update-ref", "refs/remotes/origin/feature/remote", "HEAD")
 	project := domain.ProjectRecord{ID: "test", Path: repo}
-	for input, want := range map[string]string{"feature/local": "refs/heads/feature/local", "origin/feature/remote": "refs/remotes/origin/feature/remote", "feature/remote": "refs/remotes/origin/feature/remote"} {
+	for input, want := range map[string]string{"refs/heads/feature/local": "refs/heads/feature/local", "refs/remotes/origin/feature/remote": "refs/remotes/origin/feature/remote", "feature/local": "refs/heads/feature/local", "origin/feature/remote": "refs/remotes/origin/feature/remote", "feature/remote": "refs/remotes/origin/feature/remote"} {
 		got, err := resolveTaskBase(context.Background(), project, input)
 		if err != nil || got != want {
 			t.Fatalf("resolve %q = %q, %v; want %q", input, got, err, want)
 		}
 	}
-	for _, input := range []string{"missing", "HEAD~0", "refs/heads/main", "origin/HEAD"} {
+	for _, input := range []string{"missing", "HEAD~0", "refs/tags/main", "refs/remotes/other/main", "refs/heads/missing", "refs/remotes/origin/HEAD", "origin/HEAD"} {
 		if got, err := resolveTaskBase(context.Background(), project, input); err == nil {
 			t.Fatalf("accepted %q as %q", input, got)
 		}

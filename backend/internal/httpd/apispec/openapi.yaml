@@ -4815,7 +4815,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PrepareTaskRequest'
-        required: true
       responses:
         "202":
           content:
