@@ -1684,6 +1684,8 @@ export function useConversationSkills(sessionId: string | undefined, enabled: bo
 		loaded: query.isSuccess,
 		/** Why the last read failed, already turned into display text. */
 		error: query.error ? apiErrorMessage(query.error) : undefined,
+		/** Readiness conflicts need a different explanation from catalog failures. */
+		errorCode: query.error ? apiErrorCode(query.error) : undefined,
 		retry: () => void query.refetch(),
 	};
 }

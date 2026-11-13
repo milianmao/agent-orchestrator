@@ -14,9 +14,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CornerDownLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 import { composerFileIcon } from "./composerFileIcon";
-import type { Suggestion, TriggerKind } from "./composerSuggest";
+import { isAOCommand, type Suggestion, type TriggerKind } from "./composerSuggest";
 
 export function ComposerSuggestMenu({
 	id,
@@ -35,6 +36,7 @@ export function ComposerSuggestMenu({
 	/** The candidate list was capped by the daemon, so it is not exhaustive. */
 	truncated?: boolean;
 }) {
+	const { t } = useTranslation();
 	const list = useRef<HTMLUListElement>(null);
 	const lastScrollTop = useRef(0);
 	const scrollDirection = useRef<"up" | "down" | null>(null);
@@ -151,9 +153,13 @@ export function ComposerSuggestMenu({
 										</span>
 									) : null}
 								</span>
-								{displayBadge(item.badge) ? (
+								{kind === "skill" || displayBadge(item.badge) ? (
 									<span className="shrink-0 text-micro text-muted-foreground">
-										{displayBadge(item.badge)}
+										{kind === "skill"
+											? isAOCommand(item.value)
+												? t("chat.slashCatalog.aoCommand")
+												: [t("chat.slashCatalog.agentSkill"), displayBadge(item.badge)].filter(Boolean).join(" · ")
+											: displayBadge(item.badge)}
 									</span>
 								) : null}
 								{index === highlighted ? (

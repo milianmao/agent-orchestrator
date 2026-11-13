@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 import {
 	promptSuggestionBusy,
 	promptSuggestionStale,
@@ -54,13 +55,14 @@ describe("usePromptOptimization", () => {
 		expect(result.current.pending).toBe(false);
 	});
 
-	it("treats an empty answer as no result rather than an empty draft", async () => {
+	it("reports an empty answer without replacing the draft", async () => {
 		const request = vi.fn(async () => "   ");
 		const { result } = renderHook(() => usePromptOptimization({ enabled: true, request }));
 		await act(async () => {
 			await expect(result.current.optimize("session-1", "turn-1", "fix login bug")).resolves.toBeUndefined();
 		});
-		expect(result.current.failure).toBeUndefined();
+		expect(result.current.failure).toBe("empty");
+		expect(result.current.pending).toBe(false);
 	});
 
 	it("does nothing while disabled", async () => {
@@ -70,5 +72,23 @@ describe("usePromptOptimization", () => {
 			await expect(result.current.optimize("session-1", "turn-1", "fix login bug")).resolves.toBeUndefined();
 		});
 		expect(request).not.toHaveBeenCalled();
+		expect(result.current.failure).toBe("unavailable");
+		expect(result.current.pending).toBe(false);
+	});
+
+	it("rejects a missing settled turn before requesting a polish", async () => {
+		const request = vi.fn();
+		const { result } = renderHook(() => usePromptOptimization({ enabled: true, request }));
+		await act(async () => { await result.current.optimize("session-1", "", "fix login bug"); });
+		expect(request).not.toHaveBeenCalled();
+		expect(result.current.failure).toBe("stale");
+	});
+
+	it("finishes the spinner after StrictMode remounts effects", async () => {
+		const request = vi.fn(async () => "Polished draft");
+		const { result } = renderHook(() => usePromptOptimization({ enabled: true, request }), { wrapper: StrictMode });
+		await act(async () => { await result.current.optimize("session-1", "turn-1", "draft"); });
+		expect(result.current.pending).toBe(false);
+		expect(result.current.failure).toBeUndefined();
 	});
 });

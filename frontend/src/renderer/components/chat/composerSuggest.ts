@@ -87,6 +87,11 @@ function score(value: string, query: string, base: number): number | null {
 	return null;
 }
 
+/** AO commands that the composer handles itself; provider skills use the same catalog shape. */
+export function isAOCommand(name: string): boolean {
+	return name === "compact" || name === "btw";
+}
+
 /** One row in the suggestion menu. */
 export interface Suggestion {
 	/** Stable key, and the value a selection inserts. */

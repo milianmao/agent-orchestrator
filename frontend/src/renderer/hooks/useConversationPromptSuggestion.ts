@@ -43,7 +43,7 @@ export const promptSuggestionBusy = busyError;
 export const promptSuggestionStale = staleError;
 
 /** Why a draft polish produced no text, in the terms the composer shows. */
-export type PromptOptimizationFailure = "busy" | "stale" | "unavailable" | "too-long";
+export type PromptOptimizationFailure = "busy" | "stale" | "unavailable" | "too-long" | "empty";
 
 export interface PromptOptimizationRequestInput {
 	sessionId: string;
@@ -69,21 +69,28 @@ export function usePromptOptimization(options: {
 	const [state, setState] = useState<{ pending: boolean; failure?: PromptOptimizationFailure }>({ pending: false });
 	const inFlight = useRef<AbortController | null>(null);
 	const mounted = useRef(true);
-	useEffect(() => () => {
-		mounted.current = false;
-		inFlight.current?.abort();
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+			inFlight.current?.abort();
+		};
 	}, []);
 
 	const optimize = useCallback(async (sessionId: string, turnId: string, draft: string): Promise<string | undefined> => {
 		// One polish at a time: a second click while the first is running would spend
 		// a second provider call for an answer the first already supersedes.
-		if (!enabled || inFlight.current) return undefined;
+		if (inFlight.current) return undefined;
+		if (!enabled || !turnId) {
+			setState({ pending: false, failure: enabled ? "stale" : "unavailable" });
+			return undefined;
+		}
 		const controller = new AbortController();
 		inFlight.current = controller;
 		setState({ pending: true });
 		try {
 			const text = (await request({ sessionId, turnId, draft, signal: controller.signal })).trim();
-			if (mounted.current && inFlight.current === controller) setState({ pending: false });
+			if (mounted.current && inFlight.current === controller) setState({ pending: false, failure: text ? undefined : "empty" });
 			return text || undefined;
 		} catch (error) {
 			if (!mounted.current || inFlight.current !== controller) return undefined;
