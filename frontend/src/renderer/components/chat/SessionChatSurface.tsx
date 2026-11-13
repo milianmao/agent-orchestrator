@@ -427,6 +427,7 @@ export const SessionChatSurface = memo(function SessionChatSurface({
 		skills,
 		loaded: skillsLoaded,
 		error: skillsError,
+		errorCode: skillsErrorCode,
 		retry: retrySkills,
 	} = useConversationSkills(
 		session.id,
@@ -587,21 +588,26 @@ export const SessionChatSurface = memo(function SessionChatSurface({
 			}
 		}
 	}, [autoOpenLinkInBrowser, isLoading, paths, snapshot, uiSessionId]);
-	const promptSuggestionState = useConversationPromptSuggestion(snapshot, Boolean(
+	const promptAssistanceEnabled = Boolean(
 		controllerCatalogsEnabled && !controllerBusy && !localEchos.length &&
 		!commands.rollbackPending && !commands.editMessagePending && !commands.activateBranchPending && !commands.compacting &&
 		!session.isTerminated && session.provisionState !== "failed" && session.provisionState !== "provisioning" &&
 		!isLoading && !error && !refreshError && !unavailable &&
 		!controllerTransitioning && !agentResuming && !newWorkDisabled && !arriving &&
 		chatInFront,
-	), hostId);
+	);
+	const promptSuggestionState = useConversationPromptSuggestion(snapshot, promptAssistanceEnabled, hostId);
 	const promptSuggestion = promptSuggestionState.suggestion;
 	// The composer's control is offered only while the daemon has a settled turn
 	// to read and a ready controller to isolate the model call on.
 	const optimizeTurnId = settledSuggestionTurnId(snapshot);
+	const optimizeDisabledReason = !controllerCatalogsEnabled || snapshot?.controller.state !== "ready"
+		? t("chat.promptSuggestion.disabled.controller")
+		: !optimizeTurnId ? t("chat.promptSuggestion.disabled.turn")
+			: !promptAssistanceEnabled ? t("chat.promptSuggestion.disabled.unavailable") : undefined;
 	const optimizationRequest = useMemo(() => localPromptOptimizationRequest(hostId), [hostId]);
 	const optimization = usePromptOptimization({
-		enabled: Boolean(optimizeTurnId && controllerCatalogsEnabled && !newWorkDisabled && chatInFront),
+		enabled: !optimizeDisabledReason,
 		request: optimizationRequest,
 	});
 	const optimizeDraft = useCallback(async (draft: string) => {
@@ -731,6 +737,7 @@ export const SessionChatSurface = memo(function SessionChatSurface({
 				promptSuggestion={promptSuggestion}
 				onRefreshPromptSuggestion={promptSuggestionState.refresh}
 				onOptimizeDraft={optimizeDraft}
+				optimizeDisabledReason={optimizeDisabledReason}
 				optimizeFailure={optimization.failure}
 				optimizing={optimization.pending}
 				newWorkDisabled={newWorkDisabled}
@@ -917,8 +924,9 @@ export const SessionChatSurface = memo(function SessionChatSurface({
 				activateBranchPending={commands.activateBranchPending}
 				activateBranchError={commands.activateBranchError}
 				skills={sideCreationEnabled ? [...(["btw"].map((name) => ({ name, displayName: name, description: "Open a new side chat", source: "AO" }))), ...skills.filter((skill) => skill.name !== "btw")] : skills}
-				skillsLoaded={skillsLoaded || sideCreationEnabled}
-				skillsError={skillsError}
+				skillsLoaded={skillsLoaded}
+				skillsError={!controllerCatalogsEnabled || skillsErrorCode === "CHAT_CONTROLLER_NOT_READY"
+					? t("chat.slashCatalog.controllerNotReady") : skillsError}
 				onRetrySkills={retrySkills}
 				filePaths={paths}
 				filePathsTruncated={truncated}

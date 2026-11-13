@@ -354,7 +354,8 @@ export interface ChatWorkspaceProps {
 	onRefreshPromptSuggestion?: () => void;
 	/** Ask the provider to polish the composer's draft; absent means no control. */
 	onOptimizeDraft?: (draft: string) => Promise<string | undefined>;
-	optimizeFailure?: "busy" | "stale" | "unavailable" | "too-long";
+	optimizeFailure?: import("../../hooks/useConversationPromptSuggestion").PromptOptimizationFailure;
+	optimizeDisabledReason?: string;
 	/** One polish request is in flight. */
 	optimizing?: boolean;
 	/** Renderer-owned state identity; the snapshot's sessionId remains the daemon wire ID. */
@@ -715,6 +716,7 @@ function ChatWorkspaceContent({
 	promptSuggestion,
 	onRefreshPromptSuggestion,
 	onOptimizeDraft,
+	optimizeDisabledReason,
 	optimizeFailure,
 	optimizing,
 	sessionTitle,
@@ -2045,9 +2047,9 @@ function ChatWorkspaceContent({
 										sentMessagesScope={`${snapshot.conversationId}:${snapshot.activeBranchId ?? ""}`}
 										draftSeed={composerDraftSeed}
 										onRefreshPromptSuggestion={onRefreshPromptSuggestion}
-										onOptimizeDraft={!queueEdit && !composerApproval && !composerElicitation && !newWorkDisabled &&
-											!controllerTransitioning && !agentInputDisabled && snapshot.controller.state === "ready"
+										onOptimizeDraft={!queueEdit && !composerApproval && !composerElicitation
 											? onOptimizeDraft : undefined}
+										optimizeDisabledReason={optimizeDisabledReason}
 										optimizeFailure={optimizeFailure}
 										optimizing={optimizing}
 										promptSuggestion={!queueEdit && !composerApproval && !composerElicitation && !turn &&

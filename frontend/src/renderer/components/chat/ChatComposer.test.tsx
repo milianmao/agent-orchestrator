@@ -1968,7 +1968,7 @@ describe("slash commands", () => {
 		await typeInComposer(field, "/");
 
 		expect(screen.queryByText("agent", { exact: true })).toBeNull();
-		expect(screen.getByText("AO", { exact: true })).toBeInTheDocument();
+		expect(screen.getByText(appI18n.t("chat.slashCatalog.aoCommand"), { exact: true })).toBeInTheDocument();
 	});
 
 	it("filters as the user types", async () => {
@@ -1986,6 +1986,7 @@ describe("slash commands", () => {
 		const { onSend, field } = renderComposer({ skills: [] });
 		await typeInComposer(field, "/rev");
 		expect(screen.queryByRole("listbox")).toBeNull();
+		expect(screen.queryByTestId("slash-catalog-status")).toBeNull();
 		expect(field.textContent).toBe("/rev");
 		// And Enter still sends, rather than being consumed by a menu that is not there.
 		await userEvent.keyboard("{Enter}");

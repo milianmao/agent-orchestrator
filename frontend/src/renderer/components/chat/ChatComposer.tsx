@@ -71,7 +71,7 @@ import {
 	type ComposerPromptSuggestion,
 	type ComposerTrigger,
 } from "./ComposerEditor";
-import { moveHighlight, rankFiles, rankSkills, type Suggestion } from "./composerSuggest";
+import { isAOCommand, moveHighlight, rankFiles, rankSkills, type Suggestion } from "./composerSuggest";
 import {
 	isSupportedImageAttachment,
 	useFileAttachments,
@@ -81,6 +81,7 @@ import {
 } from "../../hooks/useFileAttachments";
 import { File } from "lucide-react";
 import type { ChatSkill, ChatSteerOutcome } from "../../types/conversation";
+import type { PromptOptimizationFailure } from "../../hooks/useConversationPromptSuggestion";
 import {
 	acknowledgeChatComposerMutation,
 	beginChatComposerMutation,
@@ -256,6 +257,7 @@ export const ChatComposer = memo(function ChatComposer({
 	emptyPlaceholder,
 	promptSuggestion,
 	onOptimizeDraft,
+	optimizeDisabledReason,
 	optimizeFailure,
 	optimizing,
 	onRefreshPromptSuggestion,
@@ -317,7 +319,9 @@ export const ChatComposer = memo(function ChatComposer({
 	 */
 	onOptimizeDraft?: (draft: string) => Promise<string | undefined>;
 	/** Why the last optimization produced nothing; shown until the next attempt. */
-	optimizeFailure?: "busy" | "stale" | "unavailable" | "too-long";
+	optimizeFailure?: PromptOptimizationFailure;
+	/** Why the provider cannot polish or suggest a message yet. */
+	optimizeDisabledReason?: string;
 	/** A polish request is in flight. */
 	optimizing?: boolean;
 	/** Ask again for a next-message suggestion on an empty composer. */
@@ -708,17 +712,14 @@ export const ChatComposer = memo(function ChatComposer({
 	 *
 	 * An empty catalog is only trustworthy once the read succeeded: before that
 	 * the menu says it is still asking, and a failed read says what failed and
-	 * offers a retry rather than pretending the agent has no commands. `slashCommands`
-	 * includes AO's own `/compact`, so it is the catalog actually offered.
+	 * offers a retry. AO commands must not hide the provider catalog's state.
 	 */
 	const slashStatus: "loading" | "empty" | "error" | undefined =
-		trigger?.kind !== "skill" || suggestions.length > 0
+		trigger?.kind !== "skill" || trigger.key === dismissedKey
 			? undefined
-			// A query that simply matched nothing is a filtered menu, not a catalog
-			// state: it keeps today's behavior and stays closed.
 			: skillsError ? "error"
-				: !skillsLoaded ? "loading"
-					: slashCommands.length === 0 ? "empty"
+				: skillsLoaded === false ? "loading"
+					: trigger.query === "" && skillsLoaded && !skills.some((skill) => !isAOCommand(skill.name)) ? "empty"
 						: undefined;
 	// Clamped rather than trusted: the list re-ranks on every keystroke, so the
 	// index from the previous list can point past the end of this one.
@@ -1232,8 +1233,12 @@ export const ChatComposer = memo(function ChatComposer({
 	 * daemon to polish what is there and offers the answer as a proposal, so the
 	 * user's own words are never replaced without their consent.
 	 */
+/**
+	 * Disable polish unless the controller and completed turn can serve a request.
+	 * The reason stays visible so an unavailable button never looks actionable.
+	 */
 	const optimizeAvailable = Boolean(onOptimizeDraft);
-	const canOptimize = optimizeAvailable && !optimizing && !controlsDisabled && !queuedEditRecovery &&
+	const canOptimize = optimizeAvailable && !optimizeDisabledReason && !optimizing && !controlsDisabled && !queuedEditRecovery &&
 		!draftMutationPending && !submitting && !editingQueuedTurnId;
 	const runOptimize = useCallback(async () => {
 		if (!canOptimize) return;
@@ -2242,6 +2247,11 @@ export const ChatComposer = memo(function ChatComposer({
 					onPaste={onPaste}
 				/>
 
+				{optimizeAvailable && optimizeDisabledReason ? (
+					<p role="status" id={`${menuId}-optimize-disabled`} className="px-1.5 text-xs leading-snug text-muted-foreground">
+						{optimizeDisabledReason}
+					</p>
+				) : null}
 				{optimizeFailure ? (
 					<p role="status" className="px-1.5 text-xs leading-snug text-warning">
 						{optimizeFailure === "busy"
@@ -2250,7 +2260,9 @@ export const ChatComposer = memo(function ChatComposer({
 								? t("chat.promptSuggestion.failure.stale")
 								: optimizeFailure === "too-long"
 									? t("chat.promptSuggestion.failure.tooLong")
-									: t("chat.promptSuggestion.failure.unavailable")}
+									: optimizeFailure === "empty"
+										? t("chat.promptSuggestion.failure.empty")
+										: t("chat.promptSuggestion.failure.unavailable")}
 					</p>
 				) : null}
 				{attachmentError ? (
@@ -2370,6 +2382,7 @@ export const ChatComposer = memo(function ChatComposer({
 											variant="ghost"
 											size="icon-sm"
 											disabled={!canOptimize}
+											aria-describedby={optimizeDisabledReason ? `${menuId}-optimize-disabled` : undefined}
 											onClick={() => void runOptimize()}
 											aria-label={hasText ? t("chat.promptSuggestion.polishAction") : t("chat.promptSuggestion.suggestAction")}
 											aria-busy={optimizing || undefined}
@@ -2384,11 +2397,11 @@ export const ChatComposer = memo(function ChatComposer({
 									</span>
 								</TooltipTrigger>
 								<TooltipContent side="bottom">
-									{optimizing
+									{optimizeDisabledReason || (optimizing
 										? t("chat.promptSuggestion.polishing")
 										: hasText
 											? t("chat.promptSuggestion.polishAction")
-											: t("chat.promptSuggestion.suggestAction")}
+												: t("chat.promptSuggestion.suggestAction"))}
 								</TooltipContent>
 							</Tooltip>
 						) : null}
