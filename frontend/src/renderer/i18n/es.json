@@ -3915,7 +3915,7 @@
 	"newTask.savedEffortUnsupported": "El esfuerzo guardado no está disponible. Se seleccionó el predeterminado del agente. Revísalo y vuelve a iniciar.",
 	"newTask.selectedEffortUnsupported": "El esfuerzo seleccionado no está disponible. Elige otro nivel antes de iniciar.",
 	"newTask.agentNotInstalled": "Este agente no está instalado. Abre la configuración de agentes para instalarlo y vuelve a intentarlo.",
-	"newTask.branchUnresolved": "Elige una rama base en la configuración del proyecto y vuelve a iniciar.",
+	"newTask.branchUnresolved": "Elige una rama base para esta tarea y vuelve a iniciar.",
 	"newTask.branchInUse": "Esa rama está abierta en otro árbol de trabajo. Elige una rama nueva para iniciar esta tarea.",
 	"newTask.branchInUseElsewhere": "Esa rama está abierta en otro lugar. Elige otro proyecto o inténtalo más tarde.",
 	"newTask.openHarnessSettings": "Abrir configuración de agentes",
@@ -4099,5 +4099,11 @@
 	"codexMcp.command": "Command",
 	"codexMcp.url": "URL",
 	"codexMcp.envRefs": "Environment",
-	"codexMcp.headerRefs": "Header"
+	"codexMcp.headerRefs": "Header",
+	"newTask.worktree": "Worktree",
+	"newTask.baseBranch": "Rama base",
+	"newTask.chooseBaseBranch": "Elegir rama base",
+	"newTask.searchBranches": "Buscar ramas",
+	"newTask.loadingBranches": "Cargando ramas…",
+	"newTask.defaultBase": "predeterminada"
 }

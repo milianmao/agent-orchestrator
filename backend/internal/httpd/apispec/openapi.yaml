@@ -4810,6 +4810,11 @@ paths:
         schema:
           description: Project identifier (registry key).
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrepareTaskRequest'
       responses:
         "202":
           content:
@@ -22910,6 +22915,9 @@ components:
           items:
             $ref: '#/components/schemas/AttachmentInput'
           type: array
+        baseBranch:
+          maxLength: 255
+          type: string
         branch:
           maxLength: 255
           type: string
@@ -24966,6 +24974,12 @@ components:
       required:
       - taskId
       - repoKey
+      type: object
+    PrepareTaskRequest:
+      properties:
+        baseBranch:
+          maxLength: 255
+          type: string
       type: object
     PrepareTaskResponse:
       properties:

@@ -97,7 +97,7 @@ type commander interface {
 	Cleanup(ctx context.Context, project domain.ProjectID) (sessionmanager.CleanupResult, error)
 	RollbackSpawn(ctx context.Context, id domain.SessionID) (deleted, killed bool, err error)
 	StageAttachments(ctx context.Context, id domain.SessionID, attachments []ports.SpawnAttachment) ([]string, error)
-	PrepareTaskWorkspace(context.Context, domain.ProjectRecord) (domain.TaskPreparationToken, error)
+	PrepareTaskWorkspace(context.Context, domain.ProjectRecord, ...string) (domain.TaskPreparationToken, error)
 	CancelTaskPreparation(context.Context, domain.TaskPreparationToken) error
 }
 
@@ -1999,6 +1999,12 @@ func mapSessionError(err error) error {
 func toSpawnAPIError(err error) error {
 	if err == nil {
 		return nil
+	}
+	if errors.Is(err, sessionmanager.ErrTaskBaseNotFound) {
+		return apierr.Invalid("BASE_BRANCH_NOT_FOUND", "The selected base branch no longer exists", nil)
+	}
+	if errors.Is(err, sessionmanager.ErrTaskBaseUnsupported) {
+		return apierr.Invalid("BASE_BRANCH_UNSUPPORTED", "Base branch selection requires a Git worktree project", nil)
 	}
 	var already *apierr.Error
 	if errors.As(err, &already) {

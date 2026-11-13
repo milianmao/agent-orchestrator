@@ -3953,7 +3953,7 @@
 	"newTask.savedEffortUnsupported": "保存的推理强度不可用。已选择代理默认值。请检查后重新开始。",
 	"newTask.selectedEffortUnsupported": "所选推理强度不可用。开始前请选择其他级别。",
 	"newTask.agentNotInstalled": "此代理尚未安装。请打开代理设置进行安装，然后重试。",
-	"newTask.branchUnresolved": "请在项目设置中选择基础分支，然后重新开始。",
+	"newTask.branchUnresolved": "请为当前任务选择基础分支，然后重新开始。",
 	"newTask.branchInUse": "该分支已在另一个工作树中打开。请为此任务选择新分支。",
 	"newTask.branchInUseElsewhere": "该分支已在其他位置打开。请选择其他项目或稍后重试。",
 	"newTask.openHarnessSettings": "打开代理设置",
@@ -4012,5 +4012,11 @@
 	"codexMcp.command": "Command",
 	"codexMcp.url": "URL",
 	"codexMcp.envRefs": "环境变量",
-	"codexMcp.headerRefs": "请求头"
+	"codexMcp.headerRefs": "请求头",
+	"newTask.worktree": "Worktree",
+	"newTask.baseBranch": "基础分支",
+	"newTask.chooseBaseBranch": "选择基础分支",
+	"newTask.searchBranches": "搜索分支",
+	"newTask.loadingBranches": "正在加载分支…",
+	"newTask.defaultBase": "默认"
 }

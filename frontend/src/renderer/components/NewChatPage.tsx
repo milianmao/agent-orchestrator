@@ -26,6 +26,7 @@ import { fetchDevices, mobileDevicesQueryKey } from "./settings/MobileDevicesSec
 import { useUiStore } from "../stores/ui-store";
 import { SessionTabsTopbar } from "./PageTopbar";
 import { useTaskLaunch, type LaunchReplay } from "./TaskComposer";
+import { TaskBaseBranchPicker } from "./TaskBaseBranchPicker";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 
@@ -40,7 +41,7 @@ export function NewChatPage({ projectId, hostId }: { projectId: string; hostId?:
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	// A Cloud task's session starts spinning up as the page opens (not Coder's).
-	const task = useTaskLaunch({ projectId, hostId });
+	const task = useTaskLaunch({ projectId, hostId, chooseTaskBase: true });
 	// Sends read the latest render's launch, not the one they started in.
 	const taskRef = useRef(task);
 	taskRef.current = task;
@@ -389,6 +390,7 @@ export function NewChatPage({ projectId, hostId }: { projectId: string; hostId?:
 				composerTray={
 					<>
 						<NewChatProjectPicker projectId={projectId} hostId={hostId} disabled={frozen} onChange={(project) => void navigate({ to: "/new", search: { project, host: hostId }, replace: true })} />
+						{task.baseSelectable && <TaskBaseBranchPicker value={task.baseBranch} data={task.branchesQuery.data} loading={task.branchesQuery.isPending} error={task.branchesQuery.isError} disabled={frozen} onChange={task.setBaseBranch} />}
 						{hostId ? null : <MobileConnected />}
 					</>
 				}

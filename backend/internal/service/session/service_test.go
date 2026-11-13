@@ -2758,7 +2758,7 @@ func (f *fakeCommander) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domai
 	}
 	return domain.SessionRecord{ID: "mer-9", ProjectID: cfg.ProjectID, Kind: cfg.Kind, Harness: cfg.Harness}, len(cfg.Prompt), 0, nil
 }
-func (*fakeCommander) PrepareTaskWorkspace(context.Context, domain.ProjectRecord) (domain.TaskPreparationToken, error) {
+func (*fakeCommander) PrepareTaskWorkspace(context.Context, domain.ProjectRecord, ...string) (domain.TaskPreparationToken, error) {
 	return "", nil
 }
 func (*fakeCommander) CancelTaskPreparation(context.Context, domain.TaskPreparationToken) error {

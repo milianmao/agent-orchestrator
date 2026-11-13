@@ -31,12 +31,13 @@ type taskPreparation struct {
 	promoted         bool
 	cancelled        bool
 	cleaning         bool
+	baseBranch       string
 }
 
 // PrepareTaskWorkspace reserves the final session id and starts only the Git
 // worktree work. Provider startup and project post-create commands still wait
 // for an explicit Start Task action.
-func (m *Manager) PrepareTaskWorkspace(ctx context.Context, project domain.ProjectRecord) (domain.TaskPreparationToken, error) {
+func (m *Manager) PrepareTaskWorkspace(ctx context.Context, project domain.ProjectRecord, baseBranch ...string) (domain.TaskPreparationToken, error) {
 	if project.ID == "" {
 		return "", nil
 	}
@@ -76,6 +77,9 @@ func (m *Manager) PrepareTaskWorkspace(ctx context.Context, project domain.Proje
 		done:    make(chan struct{}),
 		cancel:  cancel,
 	}
+	if len(baseBranch) > 0 {
+		prep.baseBranch = baseBranch[0]
+	}
 	token := domain.TaskPreparationToken(rec.ID)
 	m.taskPreparations[token] = prep
 	m.scheduleTaskPreparationCleanup(token, prep)
@@ -87,10 +91,14 @@ func (m *Manager) PrepareTaskWorkspace(ctx context.Context, project domain.Proje
 
 func (m *Manager) createTaskPreparation(ctx context.Context, prep *taskPreparation) {
 	releaseWorkspaceGate := m.acquireWorkspaceGate(domain.ProjectID(prep.project.ID))
-	baseRefs := m.refreshDefaultBranchesBestEffort(ctx, prep.project)
+	var baseRefs map[string]string
+	if prep.baseBranch == "" {
+		baseRefs = m.refreshDefaultBranchesBestEffort(ctx, prep.project)
+	}
 	ws, workspaceProject, err := m.createSessionWorkspace(ctx, prep.project, ports.SpawnConfig{
 		ProjectID:       domain.ProjectID(prep.project.ID),
 		Kind:            domain.KindWorker,
+		BaseBranch:      prep.baseBranch,
 		TaskPreparation: domain.TaskPreparationToken(prep.record.ID),
 	}, prep.record.ID, prep.record.Metadata.Branch, baseRefs)
 	// Persist any partial worktree before rollback: a cancellation can arrive
@@ -141,7 +149,7 @@ func (m *Manager) createTaskPreparation(ctx context.Context, prep *taskPreparati
 // claimTaskPreparation atomically transfers cleanup ownership to Spawn. An
 // absent, expired, or wrong-project token is only a cache miss: Spawn falls
 // back to creating its own worktree.
-func (m *Manager) claimTaskPreparation(token domain.TaskPreparationToken, projectID domain.ProjectID) *taskPreparation {
+func (m *Manager) claimTaskPreparation(token domain.TaskPreparationToken, projectID domain.ProjectID, baseBranch string) *taskPreparation {
 	token = domain.TaskPreparationToken(strings.TrimSpace(string(token)))
 	if token == "" {
 		return nil
@@ -149,7 +157,15 @@ func (m *Manager) claimTaskPreparation(token domain.TaskPreparationToken, projec
 	m.taskPreparationsMu.Lock()
 	defer m.taskPreparationsMu.Unlock()
 	prep := m.taskPreparations[token]
-	if prep == nil || prep.cancelled || prep.cleaning || domain.ProjectID(prep.project.ID) != projectID {
+	if prep == nil || prep.cancelled || prep.cleaning || domain.ProjectID(prep.project.ID) != projectID || prep.baseBranch != baseBranch {
+		return nil
+	}
+	select {
+	case <-prep.done:
+		if prep.err != nil {
+			return nil
+		}
+	default:
 		return nil
 	}
 	delete(m.taskPreparations, token)

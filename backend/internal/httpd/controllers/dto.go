@@ -1337,6 +1337,7 @@ type SendSessionMessageResponse struct {
 // DelegateTaskRequest is the body of POST /api/v1/orchestrators/delegate.
 // An omitted agent tells the orchestrator to use the project's worker default.
 type DelegateTaskRequest struct {
+	BaseBranch      string              `json:"baseBranch,omitempty" maxLength:"255"`
 	ClientRequestID string              `json:"clientRequestId,omitempty" maxLength:"128"`
 	ProjectID       domain.ProjectID    `json:"projectId"`
 	Brief           string              `json:"brief" maxLength:"16384"`
@@ -1360,6 +1361,11 @@ type DelegateTaskRequest struct {
 	// TaskPreparation is the opaque worktree token returned while the New Task
 	// dialog is open. Missing or expired tokens fall back to normal creation.
 	TaskPreparation string `json:"taskPreparation,omitempty"`
+}
+
+// PrepareTaskRequest 指定本次任务的起点，省略时保留默认行为。
+type PrepareTaskRequest struct {
+	BaseBranch string `json:"baseBranch,omitempty" maxLength:"255"`
 }
 
 // PrepareTaskResponse returns the opaque token for a speculative task workspace.

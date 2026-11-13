@@ -32,6 +32,7 @@ type DelegateTaskInput struct {
 	Brief             string
 	RequestedAgent    domain.AgentHarness
 	Branch            string
+	BaseBranch        string
 	Model             string
 	Effort            *string
 	ApprovalMode      domain.PermissionMode
@@ -50,12 +51,19 @@ type DelegateTaskOutcome struct {
 }
 
 // PrepareTask starts the reversible worktree-only half of task creation.
-func (s *Service) PrepareTask(ctx context.Context, projectID domain.ProjectID) (string, error) {
+func (s *Service) PrepareTask(ctx context.Context, projectID domain.ProjectID, baseBranch ...string) (string, error) {
 	project, err := s.requireProject(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
-	token, err := s.manager.PrepareTaskWorkspace(ctx, project)
+	base := ""
+	if len(baseBranch) > 0 {
+		base, err = resolveTaskBase(ctx, project, baseBranch[0])
+		if err != nil {
+			return "", err
+		}
+	}
+	token, err := s.manager.PrepareTaskWorkspace(ctx, project, base)
 	return string(token), err
 }
 
@@ -75,6 +83,10 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 		return DelegateTaskOutcome{WorkerID: rec.ID}, nil
 	}
 	project, err := s.requireProject(ctx, in.ProjectID)
+	if err != nil {
+		return DelegateTaskOutcome{}, err
+	}
+	base, err := resolveTaskBase(ctx, project, in.BaseBranch)
 	if err != nil {
 		return DelegateTaskOutcome{}, err
 	}
@@ -102,6 +114,7 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 		Kind:              domain.KindWorker,
 		Harness:           in.RequestedAgent,
 		Branch:            in.Branch,
+		BaseBranch:        base,
 		RequireNewBranch:  in.Branch != "",
 		Prompt:            prompt,
 		DisplayName:       delegatedTaskDisplayName(in.Brief),
