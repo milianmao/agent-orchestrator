@@ -1,4 +1,11 @@
 {
+	"newTask.workspaceLocation": "ワークスペースの場所",
+	"newTask.projectDirectory": "ローカルプロジェクトディレクトリ",
+	"newTask.newWorktree": "新しい worktree",
+	"newTask.projectDirectoryBusy": "プロジェクトディレクトリは別の実行中セッションが使用中です。新しい worktree を選ぶか、そのセッションを終了してください。",
+	"inspector.workspaceOwned": "AO 管理の worktree",
+	"inspector.workspaceExternal": "外部プロジェクトディレクトリ · アーカイブ時も保持",
+	"archive.bodyProject": "エージェントを停止します。プロジェクトディレクトリ、現在のブランチ、未コミットのファイルは保持されます。",
 	"settings.scheduler.status.RESOURCE_READY": "Resources available",
 	"settings.scheduler.status.RESOURCE_SOFT_LIMIT": "Resources under pressure; concurrency reduced",
 	"settings.scheduler.status.RESOURCE_HARD_LIMIT": "Resource limit reached; new sessions paused",

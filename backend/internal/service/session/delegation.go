@@ -28,6 +28,7 @@ const (
 // may be empty to open an idle worker that the user can instruct later. Empty
 // RequestedAgent means the spawn uses the project's worker-agent default.
 type DelegateTaskInput struct {
+	WorkspaceMode     domain.WorkspaceMode
 	ProjectID         domain.ProjectID
 	Brief             string
 	RequestedAgent    domain.AgentHarness
@@ -50,18 +51,31 @@ type DelegateTaskOutcome struct {
 	WorkerID       domain.SessionID
 }
 
-// PrepareTask starts the reversible worktree-only half of task creation.
-func (s *Service) PrepareTask(ctx context.Context, projectID domain.ProjectID, baseBranch ...string) (string, error) {
+// PrepareTask checks external directory availability or prepares an owned worktree.
+func (s *Service) PrepareTask(ctx context.Context, projectID domain.ProjectID, workspaceMode domain.WorkspaceMode, baseBranch string) (string, error) {
 	project, err := s.requireProject(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
-	base := ""
-	if len(baseBranch) > 0 {
-		base, err = resolveTaskBase(ctx, project, baseBranch[0])
+	workspaceMode = workspaceMode.WithDefault()
+	if err := validateTaskWorkspaceMode(project, workspaceMode, baseBranch, ""); err != nil {
+		return "", err
+	}
+	if workspaceMode == domain.WorkspaceModeProject {
+		rows, err := s.store.ListAllSessions(ctx)
 		if err != nil {
 			return "", err
 		}
+		for _, row := range rows {
+			if !row.IsTerminated && row.Metadata.ExternalWorkspace() && (string(row.ProjectID) == project.ID || filepath.Clean(row.Metadata.WorkspacePath) == filepath.Clean(project.Path)) {
+				return "", apierr.Conflict("PROJECT_DIRECTORY_BUSY", "Project directory is in use by another live session", map[string]any{"sessionId": row.ID})
+			}
+		}
+		return "", nil
+	}
+	base, err := resolveTaskBase(ctx, project, baseBranch)
+	if err != nil {
+		return "", err
 	}
 	token, err := s.manager.PrepareTaskWorkspace(ctx, project, base)
 	return string(token), err
@@ -84,6 +98,9 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 	}
 	project, err := s.requireProject(ctx, in.ProjectID)
 	if err != nil {
+		return DelegateTaskOutcome{}, err
+	}
+	if err := validateTaskWorkspaceMode(project, in.WorkspaceMode, in.BaseBranch, in.Branch); err != nil {
 		return DelegateTaskOutcome{}, err
 	}
 	base, err := resolveTaskBase(ctx, project, in.BaseBranch)
@@ -115,6 +132,7 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 		Harness:           in.RequestedAgent,
 		Branch:            in.Branch,
 		BaseBranch:        base,
+		WorkspaceMode:     in.WorkspaceMode,
 		RequireNewBranch:  in.Branch != "",
 		Prompt:            prompt,
 		DisplayName:       delegatedTaskDisplayName(in.Brief),
@@ -144,6 +162,14 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 		s.refineDelegatedTaskTitleInBackground(worker.ID, in)
 	}
 	return DelegateTaskOutcome{WorkerID: worker.ID}, nil
+}
+
+// validateTaskWorkspaceMode keeps project-directory requests out of worktree-only behavior.
+func validateTaskWorkspaceMode(project domain.ProjectRecord, mode domain.WorkspaceMode, base, branch string) error {
+	if !mode.Valid() || mode == domain.WorkspaceModeProject && (project.Kind.WithDefault() != domain.ProjectKindSingleRepo || base != "" || branch != "") {
+		return apierr.Invalid("INVALID_WORKSPACE_MODE", ports.ErrWorkspaceModeInvalid.Error(), nil)
+	}
+	return nil
 }
 
 func (s *Service) requireUnusedTaskBranch(ctx context.Context, project domain.ProjectRecord, branch string) error {

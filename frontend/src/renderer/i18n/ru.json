@@ -1,4 +1,11 @@
 {
+	"newTask.workspaceLocation": "Расположение рабочей области",
+	"newTask.projectDirectory": "Локальный каталог проекта",
+	"newTask.newWorktree": "Новый worktree",
+	"newTask.projectDirectoryBusy": "Каталог проекта используется другой активной сессией. Выберите новый worktree или завершите эту сессию.",
+	"inspector.workspaceOwned": "Worktree под управлением AO",
+	"inspector.workspaceExternal": "Внешний каталог проекта · сохраняется при архивировании",
+	"archive.bodyProject": "Агент будет остановлен. Каталог проекта, текущая ветка и незакоммиченные файлы сохранятся.",
 	"settings.scheduler.status.RESOURCE_READY": "Resources available",
 	"settings.scheduler.status.RESOURCE_SOFT_LIMIT": "Resources under pressure; concurrency reduced",
 	"settings.scheduler.status.RESOURCE_HARD_LIMIT": "Resource limit reached; new sessions paused",

@@ -164,6 +164,9 @@ const (
 // SessionMetadata is the typed, off-status metadata for a session: operational
 // handles and seed inputs used by Session Manager and reaper.
 type SessionMetadata struct {
+	WorkspaceMode          WorkspaceMode      `json:"workspaceMode"`
+	WorkspaceOwnership     WorkspaceOwnership `json:"workspaceOwnership"`
+	WorkspaceLeaseKey      string             `json:"-"`
 	AdditionalInstructions string
 	// Permissions pins the resolved launch policy independently of future project defaults.
 	Permissions PermissionMode `json:"permissions,omitempty"`

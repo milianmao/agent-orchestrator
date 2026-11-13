@@ -24,7 +24,7 @@ INSERT INTO sessions (
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review, auto_inject_ci,
     provision_state, provision_error, is_task_preparation, automation_run_id, automation_launch_completed,
     client_request_id, client_request_hash, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root
+    worktree_root, workspace_mode, workspace_ownership, workspace_lease_key
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -32,7 +32,7 @@ INSERT INTO sessions (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: GetClientRequestSession :one
@@ -53,8 +53,10 @@ UPDATE sessions SET
     activity_state = sqlc.arg(activity_state), activity_last_at = sqlc.arg(activity_last_at),
     first_signal_at = sqlc.narg(first_signal_at), is_terminated = sqlc.arg(is_terminated),
     branch = CASE WHEN temporary_branch <> '' AND temporary_branch = sqlc.arg(temporary_branch) THEN branch ELSE sqlc.arg(branch) END,
-    workspace_path = sqlc.arg(workspace_path), workspace_repo_path = sqlc.arg(workspace_repo_path),
-    diff_base_sha = sqlc.arg(diff_base_sha), diff_base_ref = sqlc.arg(diff_base_ref),
+    workspace_path = CASE WHEN workspace_ownership = 'external' THEN workspace_path ELSE sqlc.arg(workspace_path) END,
+    workspace_repo_path = CASE WHEN workspace_ownership = 'external' THEN workspace_repo_path ELSE sqlc.arg(workspace_repo_path) END,
+    diff_base_sha = CASE WHEN workspace_ownership = 'external' THEN diff_base_sha ELSE sqlc.arg(diff_base_sha) END,
+    diff_base_ref = CASE WHEN workspace_ownership = 'external' THEN diff_base_ref ELSE sqlc.arg(diff_base_ref) END,
     runtime_handle_id = sqlc.arg(runtime_handle_id),
     worktree_root = COALESCE(sqlc.narg(worktree_root), worktree_root),
     runtime_launch_id = sqlc.arg(runtime_launch_id), agent_session_id = sqlc.arg(agent_session_id),
@@ -318,7 +320,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root, additional_instructions
+    worktree_root, additional_instructions, workspace_mode, workspace_ownership, workspace_lease_key
 FROM sessions WHERE id = ?;
 
 -- name: GetSessionByAutomationRunID :one
@@ -341,7 +343,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root, additional_instructions
+    worktree_root, additional_instructions, workspace_mode, workspace_ownership, workspace_lease_key
 FROM sessions WHERE automation_run_id = ?;
 
 -- name: ListSessionsByProject :many
@@ -364,7 +366,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root, additional_instructions
+    worktree_root, additional_instructions, workspace_mode, workspace_ownership, workspace_lease_key
 FROM sessions WHERE project_id IS ? ORDER BY num;
 
 -- name: ListAllSessions :many
@@ -387,7 +389,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root, additional_instructions
+    worktree_root, additional_instructions, workspace_mode, workspace_ownership, workspace_lease_key
 FROM sessions ORDER BY project_id, num;
 
 -- name: ListChatHibernationCandidates :many
@@ -598,7 +600,7 @@ SELECT EXISTS(
 ) AS is_seed;
 
 -- NOTE: the `DELETE FROM sessions WHERE id = ? AND <seed-state predicates>`
--- statement is intentionally NOT a sqlc query — same sqlc 1.31 SQLite-parser
+-- statement is intentionally NOT a sqlc query - same sqlc 1.31 SQLite-parser
 -- bug as documented in queries/changelog.sql: trailing string literals (and
 -- placeholders) on the RHS of `=` in a DELETE get silently stripped, so the
 -- generated SQL ends up mid-clause and the row count is meaningless. The

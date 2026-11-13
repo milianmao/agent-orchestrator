@@ -1012,6 +1012,10 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
 	}
+	if err := validateWorkspaceMode(project, cfg); err != nil {
+		return domain.SessionRecord{}, 0, 0, err
+	}
+	cfg.WorkspaceMode = cfg.WorkspaceMode.WithDefault()
 	ctx, cancelBudget := ports.ExtendSpawnRequestBudget(ctx, postCreateBudget(0, project.Config.PostCreate))
 	defer cancelBudget()
 	standalone := cfg.ProjectID == ""
@@ -1169,7 +1173,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	}
 
 	var prep *taskPreparation
-	if cfg.AutomationRunID == nil && cfg.Branch == "" {
+	if cfg.WorkspaceMode != domain.WorkspaceModeProject && cfg.AutomationRunID == nil && cfg.Branch == "" {
 		prep = m.claimTaskPreparation(cfg.TaskPreparation, cfg.ProjectID, cfg.BaseBranch)
 	}
 	// 显式选基的缓存未命中必须同步验证并创建工作区，不能返回后才发现 seed 已失效。
@@ -1181,6 +1185,12 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		rec = prep.record
 	} else {
 		seed := seedRecord(cfg, project.Config, m.clock())
+		if cfg.WorkspaceMode == domain.WorkspaceModeProject {
+			seed.Metadata, err = projectDirectoryMetadata(ctx, project.Path, seed.Metadata)
+			if err != nil {
+				return domain.SessionRecord{}, 0, 0, err
+			}
+		}
 		if mode == domain.SessionModeChat {
 			seed.Metadata.Model = cfg.AgentConfig.Model
 			seed.Metadata.Effort = cfg.AgentConfig.Effort
@@ -1352,7 +1362,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	branch := cfg.Branch
 	if prep != nil {
 		branch = prep.record.Metadata.Branch
-	} else if branch == "" {
+	} else if branch == "" && cfg.WorkspaceMode != domain.WorkspaceModeProject {
 		branch = spawnBranch(rec, sessionPrefix(project), projectKind, m.dataDir)
 	}
 
@@ -1399,6 +1409,9 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 			return domain.SessionRecord{}, 0, 0, wrapSpawnStage(id, ErrWorkspaceCreate, err)
 		}
 	}
+	if cfg.WorkspaceMode == domain.WorkspaceModeProject {
+		ws = workspaceInfo(rec)
+	}
 	if ws.Path == "" {
 		var baseRefs map[string]string
 		if cfg.BaseBranch == "" {
@@ -1428,7 +1441,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	}
 	// Per-project workspace provisioning: symlink shared files, then run any
 	// post-create commands (e.g. `pnpm install`) before the agent launches.
-	if err := m.provisionWorkspace(ctx, project, ws.Path); err != nil {
+	if err := m.provisionOwnedWorkspace(ctx, project, ws); err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false, false)
 		return domain.SessionRecord{}, 0, 0, wrapSpawnStage(id, ErrWorkspaceProvision, err)
 	}
@@ -1607,6 +1620,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	}
 
 	metadata := domain.SessionMetadata{
+		WorkspaceMode: rec.Metadata.WorkspaceMode, WorkspaceOwnership: rec.Metadata.WorkspaceOwnership, WorkspaceLeaseKey: rec.Metadata.WorkspaceLeaseKey,
 		Permissions:               rec.Metadata.Permissions,
 		Branch:                    ws.Branch,
 		WorkspacePath:             ws.Path,
@@ -1627,7 +1641,9 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if prompt != "" {
 		metadata.LatestUserPromptAt = m.clock()
 	}
-	if projectKind == domain.ProjectKindSingleRepo {
+	if rec.Metadata.ExternalWorkspace() {
+		metadata.DiffBaseSHA, metadata.DiffBaseRef = rec.Metadata.DiffBaseSHA, rec.Metadata.DiffBaseRef
+	} else if projectKind == domain.ProjectKindSingleRepo {
 		metadata.DiffBaseSHA, metadata.DiffBaseRef = resolveSpawnDiffBase(ctx, ws.Path, ws.BaseRef)
 	}
 	if cfg.AutomationRunID != nil {
@@ -2365,6 +2381,9 @@ func spawnGitSingleLine(ctx context.Context, root string, args ...string) (strin
 }
 
 func (m *Manager) destroySpawnWorkspace(ctx context.Context, ws ports.WorkspaceInfo, workspaceProject *ports.WorkspaceProjectInfo) bool {
+	if ws.Ownership == domain.WorkspaceExternal {
+		return true
+	}
 	if release, ok := ctx.Value(spawnWorkspaceGateKey{}).(func()); ok {
 		release()
 	}
@@ -2943,6 +2962,9 @@ func (m *Manager) kill(ctx context.Context, id domain.SessionID, backgroundClean
 		}
 		releaseTerminals = release
 	}
+	if rec.Metadata.ExternalWorkspace() {
+		return KillResult{}, m.recordTermination(ctx, id, true)
+	}
 	freed := false
 	if ws.Path != "" {
 		// Persist terminal intent before user commands can wait indefinitely.
@@ -3035,6 +3057,12 @@ func (m *Manager) kill(ctx context.Context, id domain.SessionID, backgroundClean
 // This deliberately does not write a session_worktrees row: those rows are
 // boot-restore markers, and a replaced orchestrator must stay terminated.
 func (m *Manager) RetireForReplacement(ctx context.Context, id domain.SessionID) error {
+	if rec, ok, err := m.store.GetSession(ctx, id); err != nil {
+		return err
+	} else if ok && rec.Metadata.ExternalWorkspace() {
+		_, err := m.Kill(ctx, id)
+		return err
+	}
 	if err := m.beginAgentOperation(ctx, id, agentOperationRetire); err != nil {
 		if errors.Is(err, errAgentOperationInProgress) {
 			err = ErrOperationInProgress
@@ -3052,7 +3080,7 @@ func (m *Manager) RetireForReplacement(ctx context.Context, id domain.SessionID)
 	}
 	m.stopPreviewBestEffort(ctx, id)
 	m.destroyBrowserBestEffort(ctx, id)
-	if rec.Metadata.WorkspacePath == "" || rec.Metadata.Branch == "" {
+	if rec.Metadata.WorkspacePath == "" || (!rec.Metadata.ExternalWorkspace() && rec.Metadata.Branch == "") {
 		if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
 			return fmt.Errorf("retire replacement %s: clear restore markers: %w", id, err)
 		}
@@ -3253,7 +3281,7 @@ func (m *Manager) RestoreWithMode(ctx context.Context, id domain.SessionID) (res
 	// the workspace landed has neither WorkspacePath nor Branch, and there is
 	// nothing meaningful to restore from. Surface this as a typed 409 instead of
 	// letting workspace.Restore fail with an opaque wrapped error.
-	if meta.WorkspacePath == "" || (meta.Branch == "" && projectKindForSession(project, rec.ProjectID) != domain.ProjectKindScratch) {
+	if meta.WorkspacePath == "" || (!meta.ExternalWorkspace() && meta.Branch == "" && projectKindForSession(project, rec.ProjectID) != domain.ProjectKindScratch) {
 		return RestoreResult{}, fmt.Errorf("restore %s: %w", id, ErrIncompleteHandle)
 	}
 	// Resumability is decided inside restoreArgv, not here. A promptless session
@@ -3265,6 +3293,17 @@ func (m *Manager) RestoreWithMode(ctx context.Context, id domain.SessionID) (res
 	releaseWorkspaceGate := m.acquireWorkspaceGate(rec.ProjectID)
 	defer releaseWorkspaceGate()
 
+	if rec.Metadata.ExternalWorkspace() {
+		rec.IsTerminated = false
+		if err = m.store.UpdateSession(ctx, rec); err != nil {
+			return RestoreResult{}, err
+		}
+		defer func() {
+			if err != nil {
+				_ = m.lcm.MarkTerminated(context.WithoutCancel(ctx), id)
+			}
+		}()
+	}
 	ws, err := m.restoreSessionWorkspace(ctx, project, rec)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("restore %s: workspace: %w", id, err)
@@ -3998,6 +4037,7 @@ func (m *Manager) relaunchSessionWithPolicyAndGeneration(ctx context.Context, op
 		}
 	}
 	metadata := domain.SessionMetadata{
+		WorkspaceMode: rec.Metadata.WorkspaceMode, WorkspaceOwnership: rec.Metadata.WorkspaceOwnership, WorkspaceLeaseKey: rec.Metadata.WorkspaceLeaseKey,
 		Permissions:       rec.Metadata.Permissions,
 		Branch:            ws.Branch,
 		WorkspacePath:     ws.Path,
@@ -4130,7 +4170,7 @@ func (m *Manager) SaveAndTeardownAll(ctx context.Context) error {
 		if rec.IsTerminated || rec.IsTaskPreparation {
 			continue
 		}
-		if rec.Metadata.WorkspacePath == "" || rec.Metadata.Branch == "" {
+		if rec.Metadata.WorkspacePath == "" || (!rec.Metadata.ExternalWorkspace() && rec.Metadata.Branch == "") {
 			continue
 		}
 		if err := m.saveAndTeardownOne(ctx, rec); err != nil {
@@ -4145,6 +4185,9 @@ func (m *Manager) SaveAndTeardownAll(ctx context.Context) error {
 // ForceDestroy; if either capture or the DB write fails, ForceDestroy is
 // not called.
 func (m *Manager) saveAndTeardownOne(ctx context.Context, rec domain.SessionRecord) error {
+	if rec.Metadata.ExternalWorkspace() {
+		return m.saveExternalSession(ctx, rec)
+	}
 	// Gate shut this session's scoped shell terminals before either branch
 	// below force-removes its worktree. SaveAndTeardownAll only reaches here for
 	// a session with a real workspace, so there is always a worktree to protect.
@@ -4247,7 +4290,7 @@ func (m *Manager) reconcileLive(ctx context.Context, rec domain.SessionRecord) e
 		return fmt.Errorf("reconcile %s: workspace verification: %w", rec.ID, err)
 	}
 	projectKind := projectKindForSession(project, rec.ProjectID)
-	if rec.Metadata.WorkspacePath == "" || (rec.Metadata.Branch == "" && projectKind != domain.ProjectKindScratch) {
+	if rec.Metadata.WorkspacePath == "" || (!rec.Metadata.ExternalWorkspace() && rec.Metadata.Branch == "" && projectKind != domain.ProjectKindScratch) {
 		// The previous daemon died before Spawn committed a workspace (e.g. the
 		// app was closed while "Preparing the worker terminal" was still
 		// creating the worktree). Nothing observable was ever built, so — same
@@ -4645,6 +4688,15 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 
 // restoreAllSession 在项目 gate 内恢复关闭标记；显式 M2 必须先核验全部 Repo，绝不重建失效工作树。
 func (m *Manager) restoreAllSession(ctx context.Context, rec domain.SessionRecord) {
+	if rec.Metadata.ExternalWorkspace() {
+		rows, err := m.store.ListSessionWorktrees(ctx, rec.ID)
+		if err == nil && len(rows) > 0 {
+			if _, err := m.RestoreWithMode(ctx, rec.ID); err != nil {
+				m.logger.Error("restore project session", "sessionID", rec.ID, "error", err)
+			}
+		}
+		return
+	}
 	releaseWorkspaceGate := m.acquireWorkspaceGate(rec.ProjectID)
 	defer releaseWorkspaceGate()
 
@@ -4764,7 +4816,7 @@ func (m *Manager) restoreAllSession(ctx context.Context, rec domain.SessionRecor
 		}
 	}
 	if recreated {
-		if err := m.provisionWorkspace(ctx, project, ws.Path); err != nil {
+		if err := m.provisionOwnedWorkspace(ctx, project, ws); err != nil {
 			m.logger.Error("restore-all: setup recreated workspace failed", "sessionID", rec.ID, "error", err)
 			return
 		}
@@ -4832,6 +4884,12 @@ func (m *Manager) markSessionWorktreesActive(ctx context.Context, rows []domain.
 
 // restoreSessionWorkspace 先按持久化身份区分显式 M2，Legacy 保留原工作区恢复行为。
 func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.ProjectRecord, rec domain.SessionRecord) (ports.WorkspaceInfo, error) {
+	if rec.Metadata.ExternalWorkspace() {
+		if err := verifyProjectDirectory(ctx, rec.Metadata); err != nil {
+			return ports.WorkspaceInfo{}, err
+		}
+		return workspaceInfo(rec), nil
+	}
 	if rows, explicit, err := m.multiRepoSessionRows(ctx, rec); err != nil {
 		return ports.WorkspaceInfo{}, err
 	} else if explicit {
@@ -5884,6 +5942,9 @@ func (m *Manager) isWorkspaceInUse(ctx context.Context, projectID domain.Project
 // call) — most commonly because a scoped shell terminal could not be
 // confirmed closed, so reclaiming would pull the ground out from under it.
 func (m *Manager) cleanupOne(ctx context.Context, rec domain.SessionRecord, ws ports.WorkspaceInfo) (ports.WorkspaceReclaim, cleanupRefusal) {
+	if rec.Metadata.ExternalWorkspace() {
+		return "", cleanupRefusal{}
+	}
 	{
 		release := m.acquireWorkspaceGate(rec.ProjectID)
 
@@ -6022,7 +6083,7 @@ func seedRecord(cfg ports.SpawnConfig, projectConfig domain.ProjectConfig, now t
 		// Resolved before this point and persisted here. There is no UPDATE
 		// statement that can change it afterwards.
 		Mode:              domain.NormalizeSessionMode(cfg.RequestedMode),
-		Metadata:          domain.SessionMetadata{Permissions: applySpawnAgentConfig(effectiveAgentConfig(cfg.Harness, cfg.Kind, projectConfig), cfg.AgentConfig).Permissions},
+		Metadata:          domain.SessionMetadata{WorkspaceMode: cfg.WorkspaceMode.WithDefault(), WorkspaceOwnership: cfg.WorkspaceMode.Ownership(), Permissions: applySpawnAgentConfig(effectiveAgentConfig(cfg.Harness, cfg.Kind, projectConfig), cfg.AgentConfig).Permissions},
 		RequestedOutput:   cfg.RequestedOutput,
 		OutputType:        domain.SessionOutputNone,
 		AutoReviewEnabled: projectConfig.AutoReview,
@@ -7108,6 +7169,9 @@ func (m *Manager) cleanupPreparedAgentWorkspaceStrict(ctx context.Context, agent
 }
 
 func (m *Manager) cleanupAgentWorkspace(ctx context.Context, rec domain.SessionRecord, workspacePath string) {
+	if rec.Metadata.ExternalWorkspace() {
+		return
+	}
 	agent, ok := m.agents.Agent(rec.Harness)
 	if !ok {
 		return
@@ -7592,6 +7656,8 @@ func runtimeHandle(meta domain.SessionMetadata) ports.RuntimeHandle {
 
 func workspaceInfo(rec domain.SessionRecord) ports.WorkspaceInfo {
 	return ports.WorkspaceInfo{
+		Ownership:    rec.Metadata.WorkspaceMode.Ownership(),
+		BaseSHA:      rec.Metadata.DiffBaseSHA,
 		Path:         rec.Metadata.WorkspacePath,
 		WorktreeRoot: rec.Metadata.WorktreeRoot,
 		Branch:       rec.Metadata.Branch,

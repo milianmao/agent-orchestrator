@@ -326,7 +326,7 @@ func (s *Service) ListWorkspaceFiles(ctx context.Context, id domain.SessionID) (
 		return WorkspaceFiles{}, err
 	}
 	resolve := func(rctx context.Context) workspaceCompareTarget {
-		return resolveWorkspaceCompare(rctx, rec.Metadata.WorkspacePath, rec.Metadata.DiffBaseSHA, rec.Metadata.DiffBaseRef, defaultBranchForProject(project, projectOK), prs)
+		return resolveSessionWorkspaceCompare(rctx, rec.Metadata, defaultBranchForProject(project, projectOK), prs)
 	}
 	files, truncated, compare, err := s.workspaceFileSummariesCached(ctx, id, rec.Metadata.WorkspacePath, "", nil, resolve)
 	if err != nil {
@@ -585,7 +585,7 @@ func (s *Service) resolveWorkspaceFileTargetWithCompare(ctx context.Context, id 
 		return workspaceFileTarget{}, err
 	}
 	resolve := func(rctx context.Context) workspaceCompareTarget {
-		return resolveWorkspaceCompare(rctx, rec.Metadata.WorkspacePath, rec.Metadata.DiffBaseSHA, rec.Metadata.DiffBaseRef, defaultBranchForProject(project, projectOK), prs)
+		return resolveSessionWorkspaceCompare(rctx, rec.Metadata, defaultBranchForProject(project, projectOK), prs)
 	}
 	compare, changes, err := s.resolveWorkspaceChanges(ctx, id, rec.Metadata.WorkspacePath, resolve)
 	if err != nil {
@@ -798,6 +798,14 @@ func (s *Service) workspaceComparePRs(ctx context.Context, id domain.SessionID) 
 		return nil, fmt.Errorf("list PRs for compare base: %w", err)
 	}
 	return prs, nil
+}
+
+// resolveSessionWorkspaceCompare preserves the exact project-directory starting commit after branch changes.
+func resolveSessionWorkspaceCompare(ctx context.Context, metadata domain.SessionMetadata, defaultBranch string, prs []domain.PullRequest) workspaceCompareTarget {
+	if metadata.ExternalWorkspace() {
+		return workspaceCompareTarget{BaseSHA: metadata.DiffBaseSHA, BaseRef: metadata.DiffBaseRef, Mode: WorkspaceCompareBase}
+	}
+	return resolveWorkspaceCompare(ctx, metadata.WorkspacePath, metadata.DiffBaseSHA, metadata.DiffBaseRef, defaultBranch, prs)
 }
 
 func resolveWorkspaceCompare(ctx context.Context, root, recordedSHA, recordedRef, defaultBranch string, prs []domain.PullRequest) workspaceCompareTarget {
@@ -1040,7 +1048,7 @@ func (s *Service) listWorkspaceProjectFiles(ctx context.Context, rec domain.Sess
 			return WorkspaceFiles{}, err
 		}
 		resolve := func(rctx context.Context) workspaceCompareTarget {
-			return resolveWorkspaceCompare(rctx, rec.Metadata.WorkspacePath, rec.Metadata.DiffBaseSHA, rec.Metadata.DiffBaseRef, defaultBranchForProject(project, true), prs)
+			return resolveSessionWorkspaceCompare(rctx, rec.Metadata, defaultBranchForProject(project, true), prs)
 		}
 		files, truncated, compare, err := s.workspaceFileSummariesCached(ctx, rec.ID, rec.Metadata.WorkspacePath, "", nil, resolve)
 		if err != nil {
@@ -1139,7 +1147,7 @@ func (s *Service) resolveWorkspaceProjectFileTarget(ctx context.Context, rec dom
 			return workspaceFileTarget{}, err
 		}
 		resolve := func(rctx context.Context) workspaceCompareTarget {
-			return resolveWorkspaceCompare(rctx, rec.Metadata.WorkspacePath, rec.Metadata.DiffBaseSHA, rec.Metadata.DiffBaseRef, defaultBranchForProject(project, true), prs)
+			return resolveSessionWorkspaceCompare(rctx, rec.Metadata, defaultBranchForProject(project, true), prs)
 		}
 		compare, changes, err := s.resolveWorkspaceChanges(ctx, rec.ID, rec.Metadata.WorkspacePath, resolve)
 		if err != nil {

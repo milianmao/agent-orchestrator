@@ -74,6 +74,7 @@ type AgentModelOption = components["schemas"]["AgentModelInfo"];
 const NO_MODELS: AgentModelOption[] = [];
 
 type CreateTaskInput = {
+	workspaceMode?: "worktree" | "project";
 	baseBranch?: string;
 	clientRequestId?: string;
 	projectId: string;
@@ -294,6 +295,7 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 						projectId: input.projectId,
 						brief: input.brief,
 						baseBranch: input.baseBranch,
+						workspaceMode: input.workspaceMode,
 						...(input.branch ? { branch: input.branch } : {}),
 						agent: input.agent,
 						...(input.model ? { model: input.model } : {}),
@@ -387,7 +389,27 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 			return data.project as Project;
 		},
 	});
-	const baseSelectable = chooseTaskBase && Boolean(projectQuery.data) && !isCloudProject && !isStandalone && projectQuery.data?.kind !== "scratch" && projectQuery.data?.kind !== "workspace";
+	const workspaceSelectable = chooseTaskBase && Boolean(projectQuery.data) && !isCloudProject && !isStandalone && projectQuery.data?.kind !== "scratch" && projectQuery.data?.kind !== "workspace";
+	const baseScope = `${hostId ?? "local"}:${projectId ?? ""}`;
+	const [workspaceChoice, setWorkspaceChoice] = useState<{ project: string; value: "worktree" | "project" }>();
+	const workspaceMode = workspaceSelectable && workspaceChoice?.project === baseScope ? workspaceChoice.value : "worktree";
+	const baseSelectable = workspaceSelectable && workspaceMode === "worktree";
+	const availabilityKey = ["project-directory-availability", baseScope];
+	const availability = useQuery({
+		queryKey: availabilityKey,
+		enabled: workspaceMode === "project",
+		retry: false,
+		refetchInterval: 5000,
+		queryFn: async () => {
+			const { error } = await (hostId ? clientForHost(hostId) : apiClient).POST("/api/v1/projects/{id}/tasks/prepare", {
+				params: { path: { id: projectId ?? "" } }, body: { workspaceMode: "project" },
+			});
+			if (error && apiErrorCode(error) !== "PROJECT_DIRECTORY_BUSY") throw new Error(apiErrorMessage(error));
+			return { busy: Boolean(error) };
+		},
+	});
+	const workspaceBusy = workspaceMode === "project" && availability.data?.busy === true;
+	const workspaceError = workspaceMode === "project" && availability.error instanceof Error ? availability.error.message : undefined;
 	const [baseChoice, setBaseChoice] = useState<{ project: string; value: string }>();
 	const branchesQuery = useQuery({
 		queryKey: projectBranchesQueryKey(projectId ?? "", hostId),
@@ -399,12 +421,11 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 			return data;
 		},
 	});
-	const baseScope = `${hostId ?? "local"}:${projectId ?? ""}`;
 	const baseBranch = baseSelectable ? (baseChoice && baseChoice.project === baseScope ? baseChoice.value : branchesQuery.data?.default ?? "") : "";
 	useEffect(() => {
 		const id = projectQuery.data?.id;
 		if (baseSelectable && !baseBranch) return;
-		if (!id) return;
+		if (!id || workspaceMode === "project") return;
 		let client;
 		try {
 			client = hostId ? clientForHost(hostId) : apiClient;
@@ -417,7 +438,7 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 		preparedBaseBranchRef.current = "";
 		void client.POST("/api/v1/projects/{id}/tasks/prepare", {
 			params: { path: { id } },
-			body: { baseBranch },
+			body: { baseBranch, workspaceMode },
 		}).then(
 			({ data }) => {
 				const token = data?.taskPreparation ?? "";
@@ -439,7 +460,7 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 			setPreparedSessionId("");
 			if (token !== launchingPreparationRef.current) cancelTaskPreparation(token, hostId);
 		};
-	}, [hostId, projectQuery.data?.id, baseBranch, baseSelectable]);
+	}, [hostId, projectQuery.data?.id, baseBranch, baseSelectable, workspaceMode]);
 	const agentsQuery = useAgentReadinessQuery(true, hostId);
 	const { settings, error: settingsError } = useSettings(hostId);
 	// The composer preselects the agent and model a spawn would actually use
@@ -854,6 +875,7 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 						? t("newTask.cloudModelsFailed", { agent: selectedAgentLabel })
 						: undefined;
 	const canSubmit =
+		!workspaceBusy && !workspaceError &&
 		hostConnected &&
 		Boolean(projectId) &&
 		!cloudCatalogLoading &&
@@ -937,7 +959,7 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 		setStatus(undefined);
 		setErrorAction(undefined);
 		setFallbackAction(undefined);
-		const heldPreparation = preparedBaseBranchRef.current === baseBranch ? taskPreparationRef.current : "";
+		const heldPreparation = workspaceMode === "worktree" && preparedBaseBranchRef.current === baseBranch ? taskPreparationRef.current : "";
 		launchingPreparationRef.current = heldPreparation;
 		let submittedPreparation = heldPreparation;
 		try {
@@ -953,13 +975,14 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 			}
 			const attachmentPayloads = files ?? await toSettledPayload();
 			// One that resolved while the checks above ran is claimed too.
-			submittedPreparation = heldPreparation || (preparedBaseBranchRef.current === baseBranch ? taskPreparationRef.current : "");
+			submittedPreparation = workspaceMode === "project" ? "" : heldPreparation || (preparedBaseBranchRef.current === baseBranch ? taskPreparationRef.current : "");
 			launchingPreparationRef.current = submittedPreparation;
 			const request: CreateTaskInput = {
 				baseBranch: baseBranch || undefined,
+				workspaceMode,
 				projectId,
 				brief,
-				...(branchOverride && !isCloudProject && !isStandalone ? { branch: branchOverride } : {}),
+				...(branchOverride && workspaceMode === "worktree" && !isCloudProject && !isStandalone ? { branch: branchOverride } : {}),
 				...(replay ? {
 					agent: replay.agent as CreateTaskInput["agent"],
 					model: replay.model,
@@ -1065,6 +1088,9 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 					message = t("newTask.agentNotInstalled", { defaultValue: "This agent is not installed. Open Agent Harnesses settings to install it, then try again." });
 				} else if (err.code === "DEFAULT_BRANCH_UNRESOLVED") {
 					message = t("newTask.branchUnresolved", { defaultValue: "Choose a base branch in project settings, then start again." });
+				} else if (err.code === "PROJECT_DIRECTORY_BUSY") {
+					queryClient.setQueryData(availabilityKey, { busy: true });
+					message = t("newTask.projectDirectoryBusy");
 				} else if (err.code === "BRANCH_ALREADY_EXISTS") {
 					setErrorAction("choose-branch");
 					message = err.message;
@@ -1188,6 +1214,8 @@ export function useTaskLaunch({ projectId, hostId, chooseTaskBase = false }: {
 	};
 
 	return {
+		workspaceMode, workspaceSelectable, workspaceBusy, workspaceError,
+		setWorkspaceMode: (value: "worktree" | "project") => setWorkspaceChoice({ project: baseScope, value }),
 		baseBranch,
 		baseSelectable,
 		branchesQuery,

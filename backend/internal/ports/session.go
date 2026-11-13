@@ -9,6 +9,12 @@ import (
 // ErrSessionNotFound reports an observation for an unknown session id.
 var ErrSessionNotFound = errors.New("session not found")
 
+// ErrProjectDirectoryBusy reports a persisted live owner, including after restart.
+var ErrProjectDirectoryBusy = errors.New("project directory is already owned by a live session")
+
+// ErrWorkspaceModeInvalid rejects unsupported modes and project/branch combinations.
+var ErrWorkspaceModeInvalid = errors.New("project mode requires a local single-repository worker without branch, baseBranch or preparation")
+
 // ErrActivityProjectionContention means no signal projection committed after
 // retrying concurrent session writes. The same hook payload may be retried.
 var ErrActivityProjectionContention = errors.New("activity projection contention")
@@ -16,6 +22,7 @@ var ErrActivityProjectionContention = errors.New("activity projection contention
 // SpawnConfig is the request to start a new session: which project/issue, which
 // agent harness, and the branch/prompt the agent launches with.
 type SpawnConfig struct {
+	WorkspaceMode domain.WorkspaceMode
 	// IndependentOrchestrator 显式创建独立编排会话，不复用项目主编排器。
 	IndependentOrchestrator bool
 	// OrchestratorSessionID 由 daemon 根据派发来源解析，不接受外部指定的任务归属。

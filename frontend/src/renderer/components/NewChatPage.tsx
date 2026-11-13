@@ -390,7 +390,7 @@ export function NewChatPage({ projectId, hostId }: { projectId: string; hostId?:
 				composerTray={
 					<>
 						<NewChatProjectPicker projectId={projectId} hostId={hostId} disabled={frozen} onChange={(project) => void navigate({ to: "/new", search: { project, host: hostId }, replace: true })} />
-						{task.baseSelectable && <TaskBaseBranchPicker value={task.baseBranch} data={task.branchesQuery.data} loading={task.branchesQuery.isPending} error={task.branchesQuery.isError} disabled={frozen} onChange={task.setBaseBranch} />}
+						{task.workspaceSelectable && <TaskBaseBranchPicker workspaceMode={task.workspaceMode} onWorkspaceModeChange={task.setWorkspaceMode} busy={task.workspaceBusy} workspaceError={task.workspaceError} value={task.baseBranch} data={task.branchesQuery.data} loading={task.branchesQuery.isPending} error={task.branchesQuery.isError} disabled={frozen} onChange={task.setBaseBranch} />}
 						{hostId ? null : <MobileConnected />}
 					</>
 				}

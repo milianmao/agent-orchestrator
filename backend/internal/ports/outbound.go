@@ -618,7 +618,8 @@ type WorkspaceConfig struct {
 
 // WorkspaceInfo describes a created workspace — where it lives and its branch.
 type WorkspaceInfo struct {
-	Path string
+	Ownership domain.WorkspaceOwnership
+	Path      string
 	// WorktreeRoot is the root Path was created under. Callers persist it with
 	// the worktree so restore, observation, and teardown keep addressing the
 	// directory that exists even after a project's configured root changes.

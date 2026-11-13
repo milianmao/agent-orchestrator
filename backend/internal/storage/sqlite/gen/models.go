@@ -305,6 +305,11 @@ type CodexAccountSwitch struct {
 	SourceKind             string
 }
 
+type CodexMcpConfig struct {
+	Name       string
+	ConfigJson string
+}
+
 type Conversation struct {
 	ID                         string
 	Scope                      domain.ConversationScope
@@ -937,6 +942,9 @@ type Session struct {
 	SpawnParentSessionID             string
 	WorktreeRoot                     string
 	AdditionalInstructions           string
+	WorkspaceMode                    string
+	WorkspaceOwnership               string
+	WorkspaceLeaseKey                string
 }
 
 type SessionAgentAccount struct {
@@ -995,6 +1003,11 @@ type SessionCleanupFact struct {
 	NextAttemptAt        sql.NullTime
 	FailureCode          string
 	ReportOnly           bool
+}
+
+type SessionCodexMcpConfig struct {
+	SessionID  string
+	ConfigJson string
 }
 
 type SessionHarnessRelease struct {

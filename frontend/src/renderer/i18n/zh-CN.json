@@ -1,4 +1,11 @@
 {
+	"newTask.workspaceLocation": "工作目录",
+	"newTask.projectDirectory": "本地项目目录",
+	"newTask.newWorktree": "新建 Worktree",
+	"newTask.projectDirectoryBusy": "项目目录正在被另一个未终止会话使用。请选择新建 Worktree，或先终止占用会话。",
+	"inspector.workspaceOwned": "AO 管理的 Worktree",
+	"inspector.workspaceExternal": "外部项目目录 · 归档时保留",
+	"archive.bodyProject": "代理将停止。项目目录、当前分支和未提交文件都会保留。",
 	"settings.scheduler.status.RESOURCE_READY": "资源充足",
 	"settings.scheduler.status.RESOURCE_SOFT_LIMIT": "资源紧张，已降低并发",
 	"settings.scheduler.status.RESOURCE_HARD_LIMIT": "已达到资源阈值，暂停新增会话",

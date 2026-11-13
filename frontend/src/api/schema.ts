@@ -6772,6 +6772,10 @@ export interface components {
             /** @enum {string} */
             workspaceCleanup?: "pending" | "removed" | "preserved_dirty" | "failed" | "not_applicable";
             workspaceCleanupReportOnly?: boolean;
+            /** @enum {string} */
+            workspaceMode: "worktree" | "project";
+            /** @enum {string} */
+            workspaceOwnership: "owned" | "external";
         };
         ControllersSetKeepAwakeRequest: {
             enabled: boolean;
@@ -7323,6 +7327,8 @@ export interface components {
             model?: string;
             projectId: string;
             taskPreparation?: string;
+            /** @enum {string} */
+            workspaceMode?: "worktree" | "project";
         };
         DelegateTaskResponse: {
             ok: boolean;
@@ -8092,6 +8098,8 @@ export interface components {
         };
         PrepareTaskRequest: {
             baseBranch?: string;
+            /** @enum {string} */
+            workspaceMode?: "worktree" | "project";
         };
         PrepareTaskResponse: {
             ok: boolean;

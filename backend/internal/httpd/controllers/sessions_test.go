@@ -64,6 +64,8 @@ type fakeSessionService struct {
 	delegationInput            sessionsvc.DelegateTaskInput
 	delegationErr              error
 	preparedProject            domain.ProjectID
+	preparedWorkspaceMode      domain.WorkspaceMode
+	preparedBaseBranch         string
 	canceledPreparation        string
 	cleanupProjects            []domain.ProjectID
 	cleanupResult              []domain.SessionID
@@ -501,8 +503,9 @@ func (f *fakeSessionService) DelegateTask(_ context.Context, in sessionsvc.Deleg
 	return sessionsvc.DelegateTaskOutcome{WorkerID: "ao-worker", OrchestratorID: "ao-orch"}, nil
 }
 
-func (f *fakeSessionService) PrepareTask(_ context.Context, projectID domain.ProjectID, baseBranch ...string) (string, error) {
+func (f *fakeSessionService) PrepareTask(_ context.Context, projectID domain.ProjectID, workspaceMode domain.WorkspaceMode, baseBranch string) (string, error) {
 	f.preparedProject = projectID
+	f.preparedWorkspaceMode, f.preparedBaseBranch = workspaceMode, baseBranch
 	return "prep-token", nil
 }
 
