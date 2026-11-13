@@ -240,7 +240,9 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 	}
 
 	var diffBaseSHA, diffBaseRef string
-	if in.projectKind == domain.ProjectKindSingleRepo {
+	if in.record.Metadata.ExternalWorkspace() {
+		diffBaseSHA, diffBaseRef = in.record.Metadata.DiffBaseSHA, in.record.Metadata.DiffBaseRef
+	} else if in.projectKind == domain.ProjectKindSingleRepo {
 		diffBaseSHA, diffBaseRef = resolveSpawnDiffBase(
 			ctx, in.workspace.Path, in.workspace.BaseRef)
 	}
@@ -329,6 +331,7 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 		},
 		ControllerReady: func(started ChatStarted) (ChatControllerCommit, error) {
 			metadata := domain.SessionMetadata{
+				WorkspaceMode: in.record.Metadata.WorkspaceMode, WorkspaceOwnership: in.record.Metadata.WorkspaceOwnership, WorkspaceLeaseKey: in.record.Metadata.WorkspaceLeaseKey,
 				Permissions:       in.record.Metadata.Permissions,
 				Branch:            in.workspace.Branch,
 				WorkspacePath:     in.workspace.Path,

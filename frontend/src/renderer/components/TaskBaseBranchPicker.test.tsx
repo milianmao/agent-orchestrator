@@ -3,6 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { TaskBaseBranchPicker } from "./TaskBaseBranchPicker";
 
+it("switches workspace location, hides the base selector in project mode, and shows the lease conflict", async () => {
+	const changeMode = vi.fn();
+	const props = { value: "main", loading: false, error: false, disabled: false, onChange: vi.fn(), onWorkspaceModeChange: changeMode };
+	const { rerender } = render(<TaskBaseBranchPicker {...props} workspaceMode="worktree" />);
+	expect(screen.getByRole("button", { name: "Base branch" })).toBeInTheDocument();
+	await userEvent.click(screen.getByRole("button", { name: "Workspace location" }));
+	await userEvent.click(screen.getByRole("menuitem", { name: "Local project directory" }));
+	expect(changeMode).toHaveBeenCalledWith("project");
+	rerender(<TaskBaseBranchPicker {...props} workspaceMode="project" busy />);
+	expect(screen.queryByRole("button", { name: "Base branch" })).not.toBeInTheDocument();
+	expect(screen.getByRole("alert")).toHaveTextContent("Project directory is in use");
+	rerender(<TaskBaseBranchPicker {...props} workspaceMode="worktree" />);
+	expect(screen.getByRole("button", { name: "Base branch" })).toBeInTheDocument();
+});
+
 it("groups and searches existing local/origin branches and selects by keyboard", async () => {
 	const changed = vi.fn();
 	render(<TaskBaseBranchPicker value="main" loading={false} error={false} disabled={false} onChange={changed} data={{

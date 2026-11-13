@@ -1,4 +1,11 @@
 {
+	"newTask.workspaceLocation": "Arbeitsbereich",
+	"newTask.projectDirectory": "Lokales Projektverzeichnis",
+	"newTask.newWorktree": "Neuer Worktree",
+	"newTask.projectDirectoryBusy": "Das Projektverzeichnis wird bereits von einer anderen aktiven Sitzung verwendet. Wähle einen neuen Worktree oder beende diese Sitzung.",
+	"inspector.workspaceOwned": "Von AO verwalteter Worktree",
+	"inspector.workspaceExternal": "Externes Projektverzeichnis · beim Archivieren erhalten",
+	"archive.bodyProject": "Der Agent wird beendet. Projektverzeichnis, aktueller Branch und nicht committete Dateien bleiben erhalten.",
 	"settings.scheduler.status.RESOURCE_READY": "Resources available",
 	"settings.scheduler.status.RESOURCE_SOFT_LIMIT": "Resources under pressure; concurrency reduced",
 	"settings.scheduler.status.RESOURCE_HARD_LIMIT": "Resource limit reached; new sessions paused",

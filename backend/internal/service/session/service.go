@@ -1963,6 +1963,10 @@ func mapSessionError(err error) error {
 		return apierr.Conflict("WORKSPACE_CWD_MISMATCH", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceLocked):
 		return apierr.Conflict("WORKSPACE_LOCKED", err.Error(), nil)
+	case errors.Is(err, ports.ErrProjectDirectoryBusy):
+		return apierr.Conflict("PROJECT_DIRECTORY_BUSY", "Project directory is in use by another live session", nil)
+	case errors.Is(err, ports.ErrWorkspaceModeInvalid):
+		return apierr.Invalid("INVALID_WORKSPACE_MODE", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspacePathOccupied):
 		return apierr.Conflict("WORKSPACE_PATH_OCCUPIED", err.Error(), nil)
 	case errors.As(err, &capabilityRefusal):

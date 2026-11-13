@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
@@ -92,6 +93,8 @@ func (s *Store) createSessionLocked(ctx context.Context, rec domain.SessionRecor
 
 // createSessionWithQueriesLocked 复用事务内身份分配，使执行许可消费和 Session 插入一起提交。
 func (s *Store) createSessionWithQueriesLocked(ctx context.Context, q *gen.Queries, rec domain.SessionRecord) (domain.SessionRecord, bool, error) {
+	rec.Metadata.WorkspaceMode = rec.Metadata.WorkspaceMode.WithDefault()
+	rec.Metadata.WorkspaceOwnership = rec.Metadata.WorkspaceMode.Ownership()
 	if rec.ClientRequestID != "" {
 		existing, found, err := s.getSessionByClientRequestID(ctx, q, rec.ClientRequestID)
 		if err != nil || found {
@@ -140,6 +143,9 @@ func (s *Store) createSessionWithQueriesLocked(ctx context.Context, q *gen.Queri
 		num++
 	}
 	if err := q.InsertSession(ctx, recordToInsert(rec, num)); err != nil {
+		if strings.Contains(err.Error(), "sessions.workspace_lease_key") {
+			return domain.SessionRecord{}, false, ports.ErrProjectDirectoryBusy
+		}
 		if rec.ClientRequestID != "" {
 			existing, found, reloadErr := s.getSessionByClientRequestID(ctx, q, rec.ClientRequestID)
 			if reloadErr == nil && found {
@@ -382,7 +388,11 @@ WHERE session_id = ?
 func (s *Store) UpdateSession(ctx context.Context, rec domain.SessionRecord) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	return s.qw.UpdateSession(ctx, recordToUpdate(rec))
+	err := s.qw.UpdateSession(ctx, recordToUpdate(rec))
+	if err != nil && strings.Contains(err.Error(), "sessions.workspace_lease_key") {
+		return ports.ErrProjectDirectoryBusy
+	}
+	return err
 }
 
 // SetSessionHibernated changes only the durable sleep marker if the caller's
@@ -1137,6 +1147,9 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		OutputType:         normalizeSessionOutputType(domain.SessionOutputType(row.SessionOutputType)),
 		Metadata: domain.SessionMetadata{
 			AdditionalInstructions:           row.AdditionalInstructions,
+			WorkspaceMode:                    domain.WorkspaceMode(row.WorkspaceMode),
+			WorkspaceOwnership:               domain.WorkspaceOwnership(row.WorkspaceOwnership),
+			WorkspaceLeaseKey:                row.WorkspaceLeaseKey,
 			Branch:                           row.Branch,
 			WorkspacePath:                    row.WorkspacePath,
 			WorktreeRoot:                     row.WorktreeRoot,
@@ -1251,6 +1264,9 @@ func listAllSessionsRowToRecord(row gen.ListAllSessionsRow) domain.SessionRecord
 func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams {
 	activity := normalActivity(rec.Activity, rec.CreatedAt)
 	return gen.InsertSessionParams{
+		WorkspaceMode:                    string(rec.Metadata.WorkspaceMode.WithDefault()),
+		WorkspaceOwnership:               string(rec.Metadata.WorkspaceMode.Ownership()),
+		WorkspaceLeaseKey:                rec.Metadata.WorkspaceLeaseKey,
 		ID:                               rec.ID,
 		ProjectID:                        optionalProjectID(rec.ProjectID),
 		Num:                              num,

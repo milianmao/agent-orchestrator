@@ -1844,13 +1844,15 @@ func mergeMetadata(base, in domain.SessionMetadata) domain.SessionMetadata {
 		}
 	}
 	set(&base.Branch, in.Branch)
-	set(&base.WorkspacePath, in.WorkspacePath)
-	// The worktree root snapshot travels with the paths it describes; dropping it
-	// here left every spawned session's recorded root empty.
-	set(&base.WorktreeRoot, in.WorktreeRoot)
-	set(&base.WorkspaceRepoPath, in.WorkspaceRepoPath)
-	set(&base.DiffBaseSHA, in.DiffBaseSHA)
-	set(&base.DiffBaseRef, in.DiffBaseRef)
+	if !base.ExternalWorkspace() {
+		set(&base.WorkspacePath, in.WorkspacePath)
+		// The worktree root snapshot travels with the paths it describes; dropping it
+		// here left every spawned session's recorded root empty.
+		set(&base.WorktreeRoot, in.WorktreeRoot)
+		set(&base.WorkspaceRepoPath, in.WorkspaceRepoPath)
+		set(&base.DiffBaseSHA, in.DiffBaseSHA)
+		set(&base.DiffBaseRef, in.DiffBaseRef)
+	}
 	set(&base.RuntimeHandleID, in.RuntimeHandleID)
 	base.RuntimeLaunchID = in.RuntimeLaunchID
 	set(&base.AgentSessionID, in.AgentSessionID)

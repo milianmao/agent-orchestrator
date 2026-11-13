@@ -1329,7 +1329,7 @@ func matchSession(candidates []sessionRepo, sourceBranch string) (sessionRepo, b
 		}
 	}
 	for _, sr := range candidates {
-		if sr.branch == "" {
+		if sr.branch == "" || sr.session.Metadata.ExternalWorkspace() {
 			continue
 		}
 		// A renamed task keeps owning its temporary branch, which the agent may

@@ -108,6 +108,8 @@ export function toWorkspaceSession(
 		independentOrchestrator: session.independentOrchestrator,
 		parentOrchestratorId: session.parentOrchestratorId,
 		mode: session.mode === "chat" ? "chat" : "tui",
+		workspaceMode: session.workspaceMode,
+		workspaceOwnership: session.workspaceOwnership,
 		branch: session.branch || undefined,
 		status,
 		scmStatus,
@@ -218,6 +220,8 @@ function toLocalWorkspaceSession(
 		// Carried through verbatim: the session surface must render from
 		// the mode this session was created with, not from the current default.
 		mode: session.mode === "chat" ? "chat" : "tui",
+		workspaceMode: session.workspaceMode,
+		workspaceOwnership: session.workspaceOwnership,
 		branch: session.branch || undefined,
 		status,
 		scmStatus,

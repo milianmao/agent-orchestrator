@@ -103,6 +103,8 @@ export type SessionBranchState = { commits: number; remoteBranch?: string; unpus
 export type SessionStaleBinary = { version: string; since: string; switchFailedAt?: string };
 
 export type WorkspaceSession = {
+	workspaceMode?: "worktree" | "project";
+	workspaceOwnership?: "owned" | "external";
 	workspaceCleanup?: "pending" | "removed" | "preserved_dirty" | "failed" | "not_applicable";
 	/** The cleanup was started by a sweep, not an archive: its state raises no app feedback. */
 	workspaceCleanupReportOnly?: boolean;

@@ -21448,7 +21448,19 @@ components:
           type: string
         workspaceCleanupReportOnly:
           type: boolean
+        workspaceMode:
+          enum:
+          - worktree
+          - project
+          type: string
+        workspaceOwnership:
+          enum:
+          - owned
+          - external
+          type: string
       required:
+      - workspaceMode
+      - workspaceOwnership
       - additionalInstructions
       - id
       - kind
@@ -22943,6 +22955,11 @@ components:
         projectId:
           type: string
         taskPreparation:
+          type: string
+        workspaceMode:
+          enum:
+          - worktree
+          - project
           type: string
       required:
       - projectId
@@ -24979,6 +24996,11 @@ components:
       properties:
         baseBranch:
           maxLength: 255
+          type: string
+        workspaceMode:
+          enum:
+          - worktree
+          - project
           type: string
       type: object
     PrepareTaskResponse:

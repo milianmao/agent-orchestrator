@@ -1,4 +1,11 @@
 {
+	"newTask.workspaceLocation": "작업 위치",
+	"newTask.projectDirectory": "로컬 프로젝트 디렉터리",
+	"newTask.newWorktree": "새 worktree",
+	"newTask.projectDirectoryBusy": "프로젝트 디렉터리를 다른 활성 세션이 사용 중입니다. 새 worktree를 선택하거나 해당 세션을 종료하세요.",
+	"inspector.workspaceOwned": "AO 관리 worktree",
+	"inspector.workspaceExternal": "외부 프로젝트 디렉터리 · 보관 시 유지",
+	"archive.bodyProject": "에이전트가 중지됩니다. 프로젝트 디렉터리, 현재 브랜치, 커밋되지 않은 파일은 유지됩니다.",
 	"settings.scheduler.status.RESOURCE_READY": "Resources available",
 	"settings.scheduler.status.RESOURCE_SOFT_LIMIT": "Resources under pressure; concurrency reduced",
 	"settings.scheduler.status.RESOURCE_HARD_LIMIT": "Resource limit reached; new sessions paused",

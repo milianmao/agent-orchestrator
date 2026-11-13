@@ -25,7 +25,7 @@ type generatedTaskName struct {
 
 // taskNamingApplies reports whether a start gets a generated branch name.
 func taskNamingApplies(cfg ports.SpawnConfig) bool {
-	return cfg.NameFromPrompt && cfg.Branch == "" && cfg.Kind == domain.KindWorker && strings.TrimSpace(cfg.Prompt) != ""
+	return cfg.WorkspaceMode != domain.WorkspaceModeProject && cfg.NameFromPrompt && cfg.Branch == "" && cfg.Kind == domain.KindWorker && strings.TrimSpace(cfg.Prompt) != ""
 }
 
 // startTaskNaming overlaps the one cosmetic model call with the whole start.

@@ -481,7 +481,9 @@ type WorkspaceTreeEntry struct {
 // prs is a list. The embedded domain.Session.Metadata and domain.Session.PRs
 // fields are json:"-"; these curated fields are what serialize.
 type SessionView struct {
-	AdditionalInstructions string `json:"additionalInstructions"`
+	WorkspaceMode          domain.WorkspaceMode      `json:"workspaceMode" enum:"worktree,project"`
+	WorkspaceOwnership     domain.WorkspaceOwnership `json:"workspaceOwnership" enum:"owned,external"`
+	AdditionalInstructions string                    `json:"additionalInstructions"`
 	domain.Session
 	Branch string `json:"branch,omitempty"`
 	// TerminalGeneration is an opaque renderer fence. A restarted controller
@@ -1337,13 +1339,14 @@ type SendSessionMessageResponse struct {
 // DelegateTaskRequest is the body of POST /api/v1/orchestrators/delegate.
 // An omitted agent tells the orchestrator to use the project's worker default.
 type DelegateTaskRequest struct {
-	BaseBranch      string              `json:"baseBranch,omitempty" maxLength:"255"`
-	ClientRequestID string              `json:"clientRequestId,omitempty" maxLength:"128"`
-	ProjectID       domain.ProjectID    `json:"projectId"`
-	Brief           string              `json:"brief" maxLength:"16384"`
-	Branch          string              `json:"branch,omitempty" maxLength:"255"`
-	Agent           domain.AgentHarness `json:"agent,omitempty" enum:"claude-code,codex,aider,opencode,opencode-v2,grok,droid,amp,agy,crush,cursor,qwen,gemini,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,omp,fx,prime-agent,autohand,unreal-agent,codewhale,mimo-code,deepseek-harness,openhands,command-code,memcode,hermes,fake"`
-	Model           string              `json:"model,omitempty" maxLength:"256"`
+	WorkspaceMode   domain.WorkspaceMode `json:"workspaceMode,omitempty" enum:"worktree,project"`
+	BaseBranch      string               `json:"baseBranch,omitempty" maxLength:"255"`
+	ClientRequestID string               `json:"clientRequestId,omitempty" maxLength:"128"`
+	ProjectID       domain.ProjectID     `json:"projectId"`
+	Brief           string               `json:"brief" maxLength:"16384"`
+	Branch          string               `json:"branch,omitempty" maxLength:"255"`
+	Agent           domain.AgentHarness  `json:"agent,omitempty" enum:"claude-code,codex,aider,opencode,opencode-v2,grok,droid,amp,agy,crush,cursor,qwen,gemini,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,omp,fx,prime-agent,autohand,unreal-agent,codewhale,mimo-code,deepseek-harness,openhands,command-code,memcode,hermes,fake"`
+	Model           string               `json:"model,omitempty" maxLength:"256"`
 	// Effort is an explicit, provider-advertised model tuning override. Nil
 	// inherits the project default; an empty string selects the provider default.
 	Effort *string `json:"effort,omitempty" maxLength:"64"`
@@ -1365,7 +1368,8 @@ type DelegateTaskRequest struct {
 
 // PrepareTaskRequest 指定本次任务的起点，省略时保留默认行为。
 type PrepareTaskRequest struct {
-	BaseBranch string `json:"baseBranch,omitempty" maxLength:"255"`
+	WorkspaceMode domain.WorkspaceMode `json:"workspaceMode,omitempty" enum:"worktree,project"`
+	BaseBranch    string               `json:"baseBranch,omitempty" maxLength:"255"`
 }
 
 // PrepareTaskResponse returns the opaque token for a speculative task workspace.

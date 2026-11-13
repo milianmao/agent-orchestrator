@@ -1,4 +1,11 @@
 {
+	"newTask.workspaceLocation": "Workspace location",
+	"newTask.projectDirectory": "Local project directory",
+	"newTask.newWorktree": "New worktree",
+	"newTask.projectDirectoryBusy": "Project directory is in use by another live session. Choose a new worktree or end that session.",
+	"inspector.workspaceOwned": "AO-owned worktree",
+	"inspector.workspaceExternal": "External project directory · preserved on archive",
+	"archive.bodyProject": "The agent will stop. The project directory, current branch and uncommitted files are preserved.",
 	"settings.scheduler.status.RESOURCE_READY": "Resources available",
 	"settings.scheduler.status.RESOURCE_SOFT_LIMIT": "Resources under pressure; concurrency reduced",
 	"settings.scheduler.status.RESOURCE_HARD_LIMIT": "Resource limit reached; new sessions paused",

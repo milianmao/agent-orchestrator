@@ -556,6 +556,9 @@ func (m *Manager) ObserveSessionWorktrees(ctx context.Context, id domain.Session
 // observeSessionWorktrees 复用启动 gate 内已读取的 Session，绑定、Repo 记录与 Git 仍实时核验。
 // 内部恢复不额外消费 Legacy 的回读阶段；外部观察始终先按 ID 重读 Session。
 func (m *Manager) observeSessionWorktrees(ctx context.Context, rec domain.SessionRecord) ([]ports.RepoWorktreeObservation, error) {
+	if rec.Metadata.ExternalWorkspace() {
+		return nil, verifyProjectDirectory(ctx, rec.Metadata)
+	}
 	rows, multi, err := m.multiRepoSessionRows(ctx, rec)
 	if err != nil {
 		return nil, err

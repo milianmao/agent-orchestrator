@@ -107,7 +107,7 @@ type SessionService interface {
 	SetAutoReview(ctx context.Context, id domain.SessionID, enabled bool) (domain.Session, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	DelegateTask(ctx context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error)
-	PrepareTask(ctx context.Context, projectID domain.ProjectID, baseBranch ...string) (string, error)
+	PrepareTask(ctx context.Context, projectID domain.ProjectID, workspaceMode domain.WorkspaceMode, baseBranch string) (string, error)
 	CancelTaskPreparation(ctx context.Context, token string) error
 	ListPRListing(ctx context.Context, id domain.SessionID) (sessionsvc.PRListing, error)
 	ClaimPR(ctx context.Context, id domain.SessionID, ref string, opts sessionsvc.ClaimPROptions) (sessionsvc.ClaimPRResult, error)
@@ -2314,6 +2314,7 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 		ProjectID:         in.ProjectID,
 		Brief:             domain.SanitizeControlChars(in.Brief),
 		BaseBranch:        in.BaseBranch,
+		WorkspaceMode:     in.WorkspaceMode,
 		Branch:            domain.SanitizeControlChars(strings.TrimSpace(in.Branch)),
 		RequestedAgent:    in.Agent,
 		Model:             domain.SanitizeControlChars(strings.TrimSpace(in.Model)),
@@ -2360,7 +2361,7 @@ func (c *SessionsController) prepareTask(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	token, err := c.Svc.PrepareTask(r.Context(), projectID(r), in.BaseBranch)
+	token, err := c.Svc.PrepareTask(r.Context(), projectID(r), in.WorkspaceMode, in.BaseBranch)
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -2968,6 +2969,8 @@ func sessionView(r *http.Request, s domain.Session) SessionView {
 	view := SessionView{
 		Session:                s,
 		AdditionalInstructions: s.Metadata.AdditionalInstructions,
+		WorkspaceMode:          s.Metadata.WorkspaceMode.WithDefault(),
+		WorkspaceOwnership:     s.Metadata.WorkspaceMode.Ownership(),
 		Branch:                 s.Metadata.Branch,
 		TerminalGeneration:     terminalGeneration,
 		PreviewURL:             s.Metadata.PreviewURL,

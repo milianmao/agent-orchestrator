@@ -228,7 +228,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root, additional_instructions
+    worktree_root, additional_instructions, workspace_mode, workspace_ownership, workspace_lease_key
 FROM sessions WHERE id = ?
 `
 
@@ -316,6 +316,9 @@ type GetSessionRow struct {
 	SpawnParentSessionID             string
 	WorktreeRoot                     string
 	AdditionalInstructions           string
+	WorkspaceMode                    string
+	WorkspaceOwnership               string
+	WorkspaceLeaseKey                string
 }
 
 func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessionRow, error) {
@@ -405,14 +408,26 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 		&i.SpawnParentSessionID,
 		&i.WorktreeRoot,
 		&i.AdditionalInstructions,
+		&i.WorkspaceMode,
+		&i.WorkspaceOwnership,
+		&i.WorkspaceLeaseKey,
 	)
 	return i, err
 }
 
 const getSessionAdditionalInstructions = `-- name: GetSessionAdditionalInstructions :one
+
 SELECT additional_instructions FROM sessions WHERE id = ?
 `
 
+// NOTE: the `DELETE FROM sessions WHERE id = ? AND <seed-state predicates>`
+// statement is intentionally NOT a sqlc query - same sqlc 1.31 SQLite-parser
+// bug as documented in queries/changelog.sql: trailing string literals (and
+// placeholders) on the RHS of `=` in a DELETE get silently stripped, so the
+// generated SQL ends up mid-clause and the row count is meaningless. The
+// store runs that DELETE directly via tx.ExecContext inside
+// Store.DeleteSession, inside the same transaction as the SessionIsSeed
+// probe and the raw change_log cleanup.
 func (q *Queries) GetSessionAdditionalInstructions(ctx context.Context, id domain.SessionID) (string, error) {
 	row := q.db.QueryRowContext(ctx, getSessionAdditionalInstructions, id)
 	var additional_instructions string
@@ -440,7 +455,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root, additional_instructions
+    worktree_root, additional_instructions, workspace_mode, workspace_ownership, workspace_lease_key
 FROM sessions WHERE automation_run_id = ?
 `
 
@@ -528,6 +543,9 @@ type GetSessionByAutomationRunIDRow struct {
 	SpawnParentSessionID             string
 	WorktreeRoot                     string
 	AdditionalInstructions           string
+	WorkspaceMode                    string
+	WorkspaceOwnership               string
+	WorkspaceLeaseKey                string
 }
 
 func (q *Queries) GetSessionByAutomationRunID(ctx context.Context, automationRunID *domain.AutomationRunID) (GetSessionByAutomationRunIDRow, error) {
@@ -617,6 +635,9 @@ func (q *Queries) GetSessionByAutomationRunID(ctx context.Context, automationRun
 		&i.SpawnParentSessionID,
 		&i.WorktreeRoot,
 		&i.AdditionalInstructions,
+		&i.WorkspaceMode,
+		&i.WorkspaceOwnership,
+		&i.WorkspaceLeaseKey,
 	)
 	return i, err
 }
@@ -638,7 +659,7 @@ INSERT INTO sessions (
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review, auto_inject_ci,
     provision_state, provision_error, is_task_preparation, automation_run_id, automation_launch_completed,
     client_request_id, client_request_hash, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root
+    worktree_root, workspace_mode, workspace_ownership, workspace_lease_key
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -646,7 +667,7 @@ INSERT INTO sessions (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 `
 
@@ -718,6 +739,9 @@ type InsertSessionParams struct {
 	OrchestratorSessionID            string
 	SpawnParentSessionID             string
 	WorktreeRoot                     string
+	WorkspaceMode                    string
+	WorkspaceOwnership               string
+	WorkspaceLeaseKey                string
 }
 
 func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
@@ -789,6 +813,9 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.OrchestratorSessionID,
 		arg.SpawnParentSessionID,
 		arg.WorktreeRoot,
+		arg.WorkspaceMode,
+		arg.WorkspaceOwnership,
+		arg.WorkspaceLeaseKey,
 	)
 	return err
 }
@@ -813,7 +840,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root, additional_instructions
+    worktree_root, additional_instructions, workspace_mode, workspace_ownership, workspace_lease_key
 FROM sessions ORDER BY project_id, num
 `
 
@@ -901,6 +928,9 @@ type ListAllSessionsRow struct {
 	SpawnParentSessionID             string
 	WorktreeRoot                     string
 	AdditionalInstructions           string
+	WorkspaceMode                    string
+	WorkspaceOwnership               string
+	WorkspaceLeaseKey                string
 }
 
 func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, error) {
@@ -996,6 +1026,9 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 			&i.SpawnParentSessionID,
 			&i.WorktreeRoot,
 			&i.AdditionalInstructions,
+			&i.WorkspaceMode,
+			&i.WorkspaceOwnership,
+			&i.WorkspaceLeaseKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1118,7 +1151,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, independent_orchestrator, orchestrator_session_id, spawn_parent_session_id,
-    worktree_root, additional_instructions
+    worktree_root, additional_instructions, workspace_mode, workspace_ownership, workspace_lease_key
 FROM sessions WHERE project_id IS ? ORDER BY num
 `
 
@@ -1206,6 +1239,9 @@ type ListSessionsByProjectRow struct {
 	SpawnParentSessionID             string
 	WorktreeRoot                     string
 	AdditionalInstructions           string
+	WorkspaceMode                    string
+	WorkspaceOwnership               string
+	WorkspaceLeaseKey                string
 }
 
 func (q *Queries) ListSessionsByProject(ctx context.Context, projectID *domain.ProjectID) ([]ListSessionsByProjectRow, error) {
@@ -1301,6 +1337,9 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID *domain.P
 			&i.SpawnParentSessionID,
 			&i.WorktreeRoot,
 			&i.AdditionalInstructions,
+			&i.WorkspaceMode,
+			&i.WorkspaceOwnership,
+			&i.WorkspaceLeaseKey,
 		); err != nil {
 			return nil, err
 		}
@@ -2269,8 +2308,10 @@ UPDATE sessions SET
     activity_state = ?7, activity_last_at = ?8,
     first_signal_at = ?9, is_terminated = ?10,
     branch = CASE WHEN temporary_branch <> '' AND temporary_branch = ?11 THEN branch ELSE ?12 END,
-    workspace_path = ?13, workspace_repo_path = ?14,
-    diff_base_sha = ?15, diff_base_ref = ?16,
+    workspace_path = CASE WHEN workspace_ownership = 'external' THEN workspace_path ELSE ?13 END,
+    workspace_repo_path = CASE WHEN workspace_ownership = 'external' THEN workspace_repo_path ELSE ?14 END,
+    diff_base_sha = CASE WHEN workspace_ownership = 'external' THEN diff_base_sha ELSE ?15 END,
+    diff_base_ref = CASE WHEN workspace_ownership = 'external' THEN diff_base_ref ELSE ?16 END,
     runtime_handle_id = ?17,
     worktree_root = COALESCE(?18, worktree_root),
     runtime_launch_id = ?19, agent_session_id = ?20,

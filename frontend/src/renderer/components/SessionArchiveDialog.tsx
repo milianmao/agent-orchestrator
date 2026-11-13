@@ -38,7 +38,7 @@ export function SessionArchiveDialog({
 	// A cloud session's teardown is restorable too — the control plane keeps its
 	// conversation and work so it can be re-provisioned later.
 	const isCloud = session?.cloud !== undefined;
-	const body = isCloud ? t("archive.bodyCloud") : t("archive.body");
+	const body = session?.workspaceOwnership === "external" || session?.workspaceMode === "project" ? t("archive.bodyProject") : isCloud ? t("archive.bodyCloud") : t("archive.body");
 	const artifactCount = session ? sessionArtifacts(session).length : 0;
 	const deleting = artifactCount > 0 && deleteArtifacts;
 	return (

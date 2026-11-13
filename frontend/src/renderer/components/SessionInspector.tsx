@@ -56,6 +56,7 @@ import { ScriptRunPanel } from "./ScriptRunPanel";
 import { useCloudScriptRuns } from "../hooks/useCloudScriptRuns";
 import { latestScriptRun } from "../lib/cloud-script-runs";
 import { ResumeAgentControl } from "./ResumeAgentControl";
+import { SessionWorkspaceSummary } from "./SessionWorkspaceSummary";
 import { SessionBranchSummary } from "./SessionBranchSummary";
 import { SessionAccountSummary } from "./SessionAccountSummary";
 import {
@@ -450,6 +451,7 @@ const SummaryView = memo(function SummaryView({
 			activity={
 				<>
 					<ActivityTimeline hostId={hostId} prs={prSummaries} session={session} />
+					{!session.cloud && <SessionWorkspaceSummary session={session} />}
 					{hostId || !accountsPreview ? null : <SessionAccountSummary session={session} />}
 					<ResumeAgentControl
 						className="w-full"

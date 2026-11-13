@@ -1,4 +1,11 @@
 {
+	"newTask.workspaceLocation": "Ubicación del espacio de trabajo",
+	"newTask.projectDirectory": "Directorio local del proyecto",
+	"newTask.newWorktree": "Nuevo worktree",
+	"newTask.projectDirectoryBusy": "El directorio del proyecto lo usa otra sesión activa. Elige un nuevo worktree o finaliza esa sesión.",
+	"inspector.workspaceOwned": "Worktree gestionado por AO",
+	"inspector.workspaceExternal": "Directorio externo del proyecto · se conserva al archivar",
+	"archive.bodyProject": "El agente se detendrá. Se conservan el directorio del proyecto, la rama actual y los archivos sin confirmar.",
 	"settings.scheduler.status.RESOURCE_READY": "Resources available",
 	"settings.scheduler.status.RESOURCE_SOFT_LIMIT": "Resources under pressure; concurrency reduced",
 	"settings.scheduler.status.RESOURCE_HARD_LIMIT": "Resource limit reached; new sessions paused",

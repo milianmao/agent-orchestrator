@@ -285,6 +285,9 @@ func (m *Manager) recordSettledWorkspaceCleanup(ctx context.Context, rec domain.
 // workspaceCleanupSettled reports a session whose current generation already
 // released its workspace, or never had one.
 func (m *Manager) workspaceCleanupSettled(ctx context.Context, rec domain.SessionRecord) bool {
+	if rec.Metadata.ExternalWorkspace() {
+		return true
+	}
 	facts, ok, err := m.store.GetSessionCleanupFacts(ctx, rec.ID)
 	if err != nil {
 		m.logger.Warn("read workspace cleanup facts", "sessionID", rec.ID, "error", err)

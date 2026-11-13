@@ -174,6 +174,13 @@ func (m *Manager) completeAsyncChatSpawn(ctx context.Context, in asyncChatSpawn)
 	releaseWorkspaceGate := sync.OnceFunc(m.acquireWorkspaceGate(in.cfg.ProjectID))
 	ctx = context.WithValue(ctx, spawnWorkspaceGateKey{}, releaseWorkspaceGate)
 	defer releaseWorkspaceGate()
+	if in.cfg.WorkspaceMode == domain.WorkspaceModeProject {
+		if err := verifyProjectDirectory(ctx, in.record.Metadata); err != nil {
+			m.failAsyncChatSpawn(ctx, id, err)
+			return
+		}
+		ws = workspaceInfo(in.record)
+	}
 	if ws.Path == "" {
 		var baseRefs map[string]string
 		if in.cfg.BaseBranch == "" {
@@ -211,7 +218,7 @@ func (m *Manager) completeAsyncChatSpawn(ctx context.Context, in asyncChatSpawn)
 	progress.complete(ctx, domain.SessionProvisionStepWorktree)
 	stageStarted = time.Now()
 	if !reusePublishedWorkspace || slices.Contains(plan, domain.SessionProvisionStepSetup) {
-		if err := m.provisionWorkspace(ctx, in.project, ws.Path); err != nil {
+		if err := m.provisionOwnedWorkspace(ctx, in.project, ws); err != nil {
 			m.cleanupAsyncChatWorkspace(ctx, id, ws, workspaceProject)
 			m.failAsyncChatSpawn(ctx, id, wrapSpawnStage(id, ErrWorkspaceProvision, err))
 			return
@@ -365,6 +372,9 @@ func (p *provisionProgress) publish(ctx context.Context) {
 
 // provisionPlan lists the stages completeAsyncChatSpawn will run, in order.
 func provisionPlan(in asyncChatSpawn, reusePublishedWorkspace bool) []domain.SessionProvisionStepID {
+	if in.cfg.WorkspaceMode == domain.WorkspaceModeProject {
+		return []domain.SessionProvisionStepID{domain.SessionProvisionStepAgent}
+	}
 	var plan []domain.SessionProvisionStepID
 	if !reusePublishedWorkspace && (!in.retry || len(in.record.ProvisionSteps) == 0) {
 		if in.preparation == nil {
@@ -501,6 +511,7 @@ func (m *Manager) retryFailedChatSpawn(ctx context.Context, rec domain.SessionRe
 		return RestoreResult{}, false, err
 	}
 	cfg := ports.SpawnConfig{
+		WorkspaceMode:           rec.Metadata.WorkspaceMode,
 		IndependentOrchestrator: rec.IndependentOrchestrator,
 		OrchestratorSessionID:   rec.OrchestratorSessionID,
 		WorkflowSpawn:           identity,
@@ -525,7 +536,7 @@ func (m *Manager) retryFailedChatSpawn(ctx context.Context, rec domain.SessionRe
 	}
 	projectKind := projectKindForSession(project, rec.ProjectID)
 	branch := rec.Metadata.Branch
-	if branch == "" {
+	if branch == "" && !rec.Metadata.ExternalWorkspace() {
 		branch = spawnBranch(rec, sessionPrefix(project), projectKind, m.dataDir)
 	}
 	retried, _, _, err := m.beginAsyncChatSpawn(ctx, asyncChatSpawn{
@@ -540,6 +551,9 @@ func (m *Manager) retryFailedChatSpawn(ctx context.Context, rec domain.SessionRe
 }
 
 func (m *Manager) cleanupAsyncChatWorkspace(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo, workspaceProject *ports.WorkspaceProjectInfo) {
+	if ws.Ownership == domain.WorkspaceExternal {
+		return
+	}
 	cleanupCtx, cancel := spawnRollbackContext(ctx)
 	defer cancel()
 	destroyed := m.destroySpawnWorkspace(cleanupCtx, ws, workspaceProject)
@@ -657,7 +671,7 @@ func (m *Manager) clearProvisionedWorkspace(ctx context.Context, id domain.Sessi
 	cleanupCtx, cancel := spawnRollbackContext(ctx)
 	defer cancel()
 	rec, ok, err := m.store.GetSession(cleanupCtx, id)
-	if err != nil || !ok || rec.Metadata.WorkspacePath != workspacePath {
+	if err != nil || !ok || rec.Metadata.ExternalWorkspace() || rec.Metadata.WorkspacePath != workspacePath {
 		return
 	}
 	rec.Metadata.Branch = ""
