@@ -875,7 +875,7 @@ export function LocalHarnessContent({ focusAgentId, hostId, search, onDetailChan
 								{selectedDetails.agentId === "codex" && !hostId && <TabsTrigger className={HARNESS_TAB_CLASS} value="mcp">{t("codexMcp.tab")}</TabsTrigger>}
 							</TabsList>
 							<TabsContent value="account" className="settings-thin-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pt-4">{accountTab(selectedDetails)}</TabsContent>
-							{selectedDetails.agentId === "codex" && !hostId && <TabsContent value="mcp" className="min-h-0 flex-1 overflow-y-auto pt-4"><CodexMCPSection /></TabsContent>}
+							{selectedDetails.agentId === "codex" && !hostId && <TabsContent value="mcp" className="settings-thin-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6 pt-4"><CodexMCPSection /></TabsContent>}
 							<TabsContent value="models" className="min-h-0 min-w-0 overflow-hidden pt-4 data-[state=active]:flex data-[state=active]:flex-col">
 								<HarnessModelsPanel
 									agentId={selectedDetails.agentId}
